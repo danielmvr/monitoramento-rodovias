@@ -1,0 +1,9 @@
+streamlit>=1.33
+streamlit-folium>=0.20
+folium>=0.16
+feedparser>=6.0
+requests>=2.31
+geopy>=2.4
+trafilatura>=1.8
+PyYAML>=6.0
+streamlit-autorefresh>=1.0

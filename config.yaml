@@ -1,0 +1,302 @@
+# ==========================================================================
+# Configuracao do Monitoramento de Rodovias - Linhas Util
+# Edite livremente este arquivo. Apos editar, clique em "Atualizar agora"
+# no app (ou reinicie o Streamlit).
+# ==========================================================================
+
+app:
+  titulo: "Monitoramento de Rodovias - Linhas Guanabara"
+  janela_dias: 7            # janela de busca de noticias (dias para tras)
+  periodo_default: 1        # filtro de periodo (dias) padrao no painel
+  intervalo_auto_min: 5     # auto-refresh: re-coleta a cada X minutos
+  max_por_consulta: 8       # maximo de noticias por rodovia/consulta
+  buscar_hubs: true         # tambem busca noticias por cidades-hub
+  fetch_artigo: true        # baixa o artigo p/ resumo melhor (precisa internet)
+  idioma_news: "pt-BR"
+  pais_news: "BR"
+
+# Palavras que caracterizam um "problema" na via. A noticia so e mantida se
+# o titulo/resumo contiver pelo menos uma destas E uma referencia a rodovia.
+palavras_problema:
+  - interdicao
+  - interditada
+  - interditado
+  - bloqueio
+  - bloqueada
+  - bloqueado
+  - acidente
+  - colisao
+  - capotamento
+  - tombamento
+  - tombou
+  - congestionamento
+  - transito
+  - lentidao
+  - engavetamento
+  - deslizamento
+  - queda de barreira
+  - desabamento
+  - alagamento
+  - alagada
+  - obras
+  - pista interditada
+  - protesto
+  - manifestacao
+  - neblina
+  - cratera
+  - incendio
+  - morre
+  - feridos
+
+# --------------------------------------------------------------------------
+# RODOVIAS / CORREDORES monitorados.
+# Lista inicial derivada dos pares origem-destino da planilha trechoLinhas.XLS.
+# 'aliases' = termos buscados no Google News (cada um vira uma busca).
+# 'lat'/'lon' = ponto representativo (usado no mapa quando a noticia cita
+# apenas a rodovia, sem cidade/km). Ajuste a vontade.
+# --------------------------------------------------------------------------
+rodovias:
+  # ---- Eixo Rio / Minas / Centro-Oeste ----
+  - nome: BR-040
+    descricao: "Rio - Petropolis - Juiz de Fora - BH - Brasilia"
+    aliases: ["BR-040", "Serra de Petropolis", "Rodovia Washington Luis Rio"]
+    lat: -21.7642
+    lon: -43.3496
+  - nome: BR-116 (Via Dutra)
+    descricao: "Rio de Janeiro - Sao Paulo"
+    aliases: ["Via Dutra", "Rodovia Presidente Dutra", "BR-116 Dutra"]
+    lat: -22.4686
+    lon: -44.4509
+  - nome: BR-116 (Regis Bittencourt)
+    descricao: "Sao Paulo - Curitiba"
+    aliases: ["Regis Bittencourt", "BR-116 sul"]
+    lat: -24.4872
+    lon: -47.8442
+  - nome: BR-381 (Fernao Dias)
+    descricao: "Belo Horizonte - Sao Paulo"
+    aliases: ["Fernao Dias", "BR-381"]
+    lat: -22.2300
+    lon: -45.9266
+  - nome: BR-393
+    descricao: "Volta Redonda - Tres Rios (liga Dutra a BR-040)"
+    aliases: ["BR-393"]
+    lat: -22.5232
+    lon: -44.1041
+  - nome: BR-101 (Norte RJ / Regiao dos Lagos)
+    descricao: "Rio - Macae - Campos"
+    aliases: ["BR-101 Rio", "BR-101 norte fluminense"]
+    lat: -22.3768
+    lon: -41.7869
+  - nome: BR-101 (Costa Verde / Rio-Santos)
+    descricao: "Rio - Angra dos Reis - Paraty"
+    aliases: ["Rio-Santos", "BR-101 Costa Verde", "BR-101 Angra"]
+    lat: -23.0067
+    lon: -44.3181
+  - nome: RJ-124 (Via Lagos)
+    descricao: "Rio Bonito - Araruama - Cabo Frio"
+    aliases: ["Via Lagos", "RJ-124"]
+    lat: -22.8728
+    lon: -42.3433
+
+  # ---- Zona da Mata e Sul de Minas ----
+  - nome: BR-267
+    descricao: "Zona da Mata MG (Juiz de Fora - Leopoldina - Oeste)"
+    aliases: ["BR-267"]
+    lat: -21.8700
+    lon: -43.0100
+  - nome: BR-265
+    descricao: "Sao Joao del Rei - Lavras - Barbacena"
+    aliases: ["BR-265"]
+    lat: -21.1356
+    lon: -44.2611
+  - nome: BR-491
+    descricao: "Varginha - Lavras - Alfenas (Sul de Minas)"
+    aliases: ["BR-491"]
+    lat: -21.5514
+    lon: -45.4300
+  - nome: BR-459
+    descricao: "Pouso Alegre - Itajuba - Lorena"
+    aliases: ["BR-459"]
+    lat: -22.4290
+    lon: -45.4520
+
+  # ---- Triangulo Mineiro / Centro-Oeste ----
+  - nome: BR-050
+    descricao: "Brasilia - Catalao - Uberlandia - Uberaba - Ribeirao Preto"
+    aliases: ["BR-050"]
+    lat: -18.9186
+    lon: -48.2772
+  - nome: BR-060
+    descricao: "Brasilia - Anapolis - Goiania - Rio Verde - Jatai"
+    aliases: ["BR-060"]
+    lat: -16.6869
+    lon: -49.2648
+  - nome: BR-153 (Belem-Brasilia)
+    descricao: "Goiania - Porangatu - Gurupi - Palmas"
+    aliases: ["BR-153", "Belem-Brasilia"]
+    lat: -13.4408
+    lon: -49.1486
+  - nome: BR-020
+    descricao: "Brasilia - Formosa - Posse - Barreiras"
+    aliases: ["BR-020"]
+    lat: -14.0917
+    lon: -46.3711
+  - nome: BR-070
+    descricao: "Brasilia - Goias - Cuiaba"
+    aliases: ["BR-070"]
+    lat: -15.6010
+    lon: -56.0974
+  - nome: BR-364
+    descricao: "Jatai - Rondonopolis - Cuiaba"
+    aliases: ["BR-364"]
+    lat: -16.4709
+    lon: -54.6356
+  - nome: BR-163
+    descricao: "Cuiaba - Sinop - Sorriso"
+    aliases: ["BR-163"]
+    lat: -11.8642
+    lon: -55.5025
+  - nome: BR-158
+    descricao: "Mato Grosso / Alta Floresta"
+    aliases: ["BR-158"]
+    lat: -9.8756
+    lon: -56.0861
+
+  # ---- Bahia / Nordeste ----
+  - nome: BR-116 (Rio-Bahia)
+    descricao: "Feira de Santana - Vitoria da Conquista"
+    aliases: ["Rio-Bahia", "BR-116 Bahia"]
+    lat: -14.8615
+    lon: -40.8442
+  - nome: BR-324
+    descricao: "Salvador - Feira de Santana - Capim Grosso"
+    aliases: ["BR-324"]
+    lat: -12.2664
+    lon: -38.9663
+  - nome: BR-242
+    descricao: "Salvador - Seabra - Ibotirama - Barreiras (Oeste BA)"
+    aliases: ["BR-242"]
+    lat: -12.1850
+    lon: -43.2206
+  - nome: BR-349
+    descricao: "Barreiras - Bom Jesus da Lapa"
+    aliases: ["BR-349"]
+    lat: -13.2550
+    lon: -43.4180
+  - nome: BR-135
+    descricao: "Oeste BA / Santa Maria da Vitoria - Correntina"
+    aliases: ["BR-135 Bahia"]
+    lat: -13.3897
+    lon: -44.1903
+  - nome: BR-110
+    descricao: "Paulo Afonso (BA)"
+    aliases: ["BR-110"]
+    lat: -9.4057
+    lon: -38.2210
+  - nome: BR-407
+    descricao: "Petrolina (Sertao)"
+    aliases: ["BR-407"]
+    lat: -9.3891
+    lon: -40.5030
+  - nome: BR-251
+    descricao: "Salinas - Montes Claros (Norte MG)"
+    aliases: ["BR-251"]
+    lat: -16.1697
+    lon: -42.2922
+
+  # ---- Norte (Belem-Brasilia / Para / Maranhao / Tocantins) ----
+  - nome: BR-010 (Belem-Brasilia)
+    descricao: "Belem - Imperatriz - Estreito - Guarai"
+    aliases: ["BR-010", "Belem-Brasilia norte"]
+    lat: -5.5264
+    lon: -47.4917
+  - nome: BR-226
+    descricao: "Imperatriz - Acailandia - Santa Ines (MA)"
+    aliases: ["BR-226"]
+    lat: -3.6603
+    lon: -45.3811
+  - nome: BR-222
+    descricao: "Acailandia - Maranhao"
+    aliases: ["BR-222"]
+    lat: -4.9472
+    lon: -47.5052
+  - nome: BR-155
+    descricao: "Maraba - Parauapebas - Redencao (PA)"
+    aliases: ["BR-155"]
+    lat: -6.0675
+    lon: -49.9022
+
+  # ---- Sao Paulo (rodovias estaduais e federais) ----
+  - nome: Anhanguera / Bandeirantes
+    descricao: "Sao Paulo - Campinas - Ribeirao Preto"
+    aliases: ["Rodovia Anhanguera", "Rodovia dos Bandeirantes", "SP-330", "SP-348"]
+    lat: -22.9099
+    lon: -47.0626
+  - nome: Washington Luis (SP-310)
+    descricao: "Campinas - Sao Carlos - Sao Jose do Rio Preto"
+    aliases: ["Rodovia Washington Luis Sao Paulo", "SP-310"]
+    lat: -20.8113
+    lon: -49.3758
+  - nome: Castello Branco (SP-280)
+    descricao: "Sao Paulo - Sorocaba"
+    aliases: ["Rodovia Castello Branco", "SP-280"]
+    lat: -23.5015
+    lon: -47.4526
+  - nome: Marechal Rondon (SP-300)
+    descricao: "Bauru - Marilia"
+    aliases: ["Rodovia Marechal Rondon", "SP-300"]
+    lat: -22.2171
+    lon: -49.9501
+  - nome: Anchieta-Imigrantes
+    descricao: "Sao Paulo - Santos (litoral)"
+    aliases: ["Rodovia dos Imigrantes", "Rodovia Anchieta", "Sistema Anchieta-Imigrantes"]
+    lat: -23.9608
+    lon: -46.3336
+  - nome: Ayrton Senna / Carvalho Pinto
+    descricao: "Sao Paulo - Sao Jose dos Campos"
+    aliases: ["Rodovia Ayrton Senna", "Rodovia Carvalho Pinto", "SP-070"]
+    lat: -23.1896
+    lon: -45.8841
+
+  # ---- Sul (PR / SC / RS) ----
+  - nome: BR-376 / BR-101 (Sul)
+    descricao: "Curitiba - Florianopolis - Porto Alegre"
+    aliases: ["BR-376", "BR-101 sul", "Serra do Cafezal"]
+    lat: -26.2360
+    lon: -49.3800
+  - nome: BR-369 / BR-376 (Norte PR)
+    descricao: "Londrina - Maringa"
+    aliases: ["BR-369", "BR-376 Parana"]
+    lat: -23.3045
+    lon: -51.1696
+
+# --------------------------------------------------------------------------
+# CIDADES-HUB para busca adicional por cidade (alem das rodovias).
+# Mantido enxuto para nao gerar ruido. Edite conforme a operacao.
+# --------------------------------------------------------------------------
+hubs:
+  - { nome: "Juiz de Fora", uf: MG }
+  - { nome: "Belo Horizonte", uf: MG }
+  - { nome: "Rio de Janeiro", uf: RJ }
+  - { nome: "Volta Redonda", uf: RJ }
+  - { nome: "Barra Mansa", uf: RJ }
+  - { nome: "Resende", uf: RJ }
+  - { nome: "Petropolis", uf: RJ }
+  - { nome: "Tres Rios", uf: RJ }
+  - { nome: "Sao Paulo", uf: SP }
+  - { nome: "Sao Jose dos Campos", uf: SP }
+  - { nome: "Taubate", uf: SP }
+  - { nome: "Aparecida", uf: SP }
+  - { nome: "Brasilia", uf: DF }
+  - { nome: "Goiania", uf: GO }
+  - { nome: "Anapolis", uf: GO }
+  - { nome: "Uberlandia", uf: MG }
+  - { nome: "Uberaba", uf: MG }
+  - { nome: "Salvador", uf: BA }
+  - { nome: "Feira de Santana", uf: BA }
+  - { nome: "Barreiras", uf: BA }
+  - { nome: "Cuiaba", uf: MT }
+  - { nome: "Palmas", uf: TO }
+  - { nome: "Imperatriz", uf: MA }
+  - { nome: "Curitiba", uf: PR }
+  - { nome: "Vitoria da Conquista", uf: BA }
