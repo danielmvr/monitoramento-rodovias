@@ -17,6 +17,7 @@ except ImportError:
 from monitor import config as cfgmod
 from monitor import pipeline, mapa
 from monitor.processa import CATEGORIAS
+from monitor import __version__ as VERSAO
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -114,6 +115,17 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
   border:2px solid var(--line); padding:6px 8px; margin-right:8px; text-decoration:none;
   display:inline-block; }
 .gb-links a:hover{ filter:brightness(1.12); }
+.gb-stack{ display:flex; flex-direction:column; gap:14px; }
+.gb-scroll{ max-height:700px; overflow-y:auto; padding-right:8px; }
+.gb-scroll::-webkit-scrollbar{ width:10px; }
+.gb-scroll::-webkit-scrollbar-thumb{ background:var(--primary); border:2px solid var(--line); }
+.gb-scroll::-webkit-scrollbar-track{ background:var(--ink2); }
+.gb-footer{ margin:26px 0 8px; padding:12px 16px; background:var(--ink2);
+  border:3px solid var(--line); box-shadow:var(--shadowsm); color:#aab0cc;
+  font-size:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.gb-ver{ font-family:var(--pix); font-size:9px; color:#fff; background:var(--blue);
+  border:2px solid var(--line); padding:5px 8px; }
+.gb-foot-name{ font-family:var(--pix); font-size:9px; color:var(--yellow); }
 """
 
 st.markdown("<style>" + CSS + "</style>", unsafe_allow_html=True)
@@ -249,86 +261,96 @@ def passa(it):
 
 itens = [i for i in itens_periodo if passa(i)]
 
-# ---------- metricas ----------
+# ---------- layout: cards (esq.) | contadores + mapa (dir., maior) ----------
 lr = st.session_state.get("last_run")
 lr_txt = lr.strftime("%d/%m/%Y %H:%M") if isinstance(lr, dt.datetime) else "nunca"
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Ocorrencias (periodo)", len(itens_periodo))
-c2.metric("Interdicoes",
-          sum(1 for i in itens_periodo if i.get("categoria") == "Interdicao"))
-c3.metric("Acidentes",
-          sum(1 for i in itens_periodo if i.get("categoria") == "Acidente"))
-c4.metric("Severidade alta",
-          sum(1 for i in itens_periodo if i.get("severidade") == "Alta"))
-st.markdown(
-    f'<div class="gb-upd">Ultima atualizacao: {html.escape(lr_txt)} '
-    f'&nbsp;|&nbsp; Exibindo {len(itens)} de {len(itens_periodo)} no periodo'
-    f'</div>', unsafe_allow_html=True)
 
 if not itens_all:
     st.info("Sem dados ainda. Clique em Atualizar agora na barra lateral "
             "para fazer a primeira varredura.")
     st.stop()
 
-# ---------- mapa ----------
-st.markdown('<div class="gb-h2">MAPA DAS OCORRENCIAS</div>',
-            unsafe_allow_html=True)
-if st_folium is not None:
-    st_folium(mapa.construir_mapa(itens, usar_cluster=True),
-              use_container_width=True, height=520, returned_objects=[])
-else:
-    st.warning("Pacote streamlit-folium nao instalado. Mapa simplificado. "
-               "Rode: pip install streamlit-folium")
-    _pts = [(i["lat"], i["lon"]) for i in itens
-            if i.get("lat") is not None and i.get("lon") is not None]
-    if _pts:
-        st.map({"lat": [p[0] for p in _pts], "lon": [p[1] for p in _pts]})
 
-# ---------- cards ----------
-st.markdown(f'<div class="gb-h2">OCORRENCIAS ({len(itens)})</div>',
-            unsafe_allow_html=True)
+def _card_html(it):
+    cor = it.get("cor", "#6b6f86")
+    cat = html.escape(it.get("categoria", ""))
+    sev = html.escape(it.get("severidade", ""))
+    sevcor = SEV_COR.get(it.get("severidade"), "#6b6f86")
+    titulo = html.escape(it.get("titulo", "(sem titulo)"))
+    resumo = html.escape(it.get("resumo", ""))
+    local = html.escape(it.get("local", "-"))
+    rod = html.escape(it.get("rodovia", "-"))
+    fonte = html.escape(it.get("fonte", "-"))
+    d = it.get("publicado")
+    dtxt = d.strftime("%d/%m %H:%M") if isinstance(d, dt.datetime) else ""
+    link = it.get("link", "")
+    titulo_html = (f'<a href="{html.escape(link)}" target="_blank">{titulo}</a>'
+                   if link else titulo)
+    links = ""
+    if link:
+        links += f'<a href="{html.escape(link)}" target="_blank">Abrir noticia</a>'
+    if it.get("lat") is not None and it.get("lon") is not None:
+        links += (f'<a href="https://www.google.com/maps?q='
+                  f'{it["lat"]},{it["lon"]}" target="_blank">Ver no mapa</a>')
+    return (
+        f'<div class="gb-card"><div class="gb-top" style="background:{cor}"></div>'
+        f'<div class="gb-cbody">'
+        f'<span class="gb-chip" style="background:{cor};color:{_txt_chip(cor)}">{cat}</span>'
+        f'<span class="gb-chip" style="background:{sevcor};color:{_txt_chip(sevcor)}">{sev}</span>'
+        f'<div class="gb-title">{titulo_html}</div>'
+        f'<div class="gb-resumo">{resumo}</div>'
+        f'<div class="gb-meta"><b>Local:</b> {local} &nbsp;|&nbsp; '
+        f'<b>Rodovia:</b> {rod}<br><b>Fonte:</b> {fonte} - {dtxt}</div>'
+        f'<div class="gb-links">{links}</div></div></div>')
 
-if not itens:
-    st.warning("Nenhuma ocorrencia para os filtros selecionados.")
-else:
-    MAX = 80
-    blocos = ['<div class="gb-grid">']
-    for it in itens[:MAX]:
-        cor = it.get("cor", "#6b6f86")
-        cat = html.escape(it.get("categoria", ""))
-        sev = html.escape(it.get("severidade", ""))
-        sevcor = SEV_COR.get(it.get("severidade"), "#6b6f86")
-        titulo = html.escape(it.get("titulo", "(sem titulo)"))
-        resumo = html.escape(it.get("resumo", ""))
-        local = html.escape(it.get("local", "-"))
-        rod = html.escape(it.get("rodovia", "-"))
-        fonte = html.escape(it.get("fonte", "-"))
-        d = it.get("publicado")
-        dtxt = d.strftime("%d/%m %H:%M") if isinstance(d, dt.datetime) else ""
-        link = it.get("link", "")
-        titulo_html = (f'<a href="{html.escape(link)}" target="_blank">{titulo}</a>'
-                       if link else titulo)
-        links = ""
-        if link:
-            links += f'<a href="{html.escape(link)}" target="_blank">Abrir noticia</a>'
-        if it.get("lat") is not None and it.get("lon") is not None:
-            links += (f'<a href="https://www.google.com/maps?q='
-                      f'{it["lat"]},{it["lon"]}" target="_blank">Ver no mapa</a>')
-        blocos.append(
-            f'<div class="gb-card"><div class="gb-top" style="background:{cor}">'
-            f'</div><div class="gb-cbody">'
-            f'<span class="gb-chip" style="background:{cor};color:{_txt_chip(cor)}">{cat}</span>'
-            f'<span class="gb-chip" style="background:{sevcor};color:{_txt_chip(sevcor)}">{sev}</span>'
-            f'<div class="gb-title">{titulo_html}</div>'
-            f'<div class="gb-resumo">{resumo}</div>'
-            f'<div class="gb-meta"><b>Local:</b> {local} &nbsp;|&nbsp; '
-            f'<b>Rodovia:</b> {rod}<br><b>Fonte:</b> {fonte} - {dtxt}</div>'
-            f'<div class="gb-links">{links}</div>'
-            f'</div></div>')
-    blocos.append('</div>')
-    st.markdown("\n".join(blocos), unsafe_allow_html=True)
-    if len(itens) > MAX:
-        st.markdown(
-            f'<div class="gb-upd">Exibindo {MAX} de {len(itens)} ocorrencias. '
-            f'Use os filtros para refinar.</div>', unsafe_allow_html=True)
+
+col_cards, col_main = st.columns([1, 2], gap="large")
+
+with col_cards:
+    st.markdown(f'<div class="gb-h2">OCORRENCIAS ({len(itens)})</div>',
+                unsafe_allow_html=True)
+    if not itens:
+        st.warning("Nenhuma ocorrencia para os filtros selecionados.")
+    else:
+        MAX = 120
+        cards = "".join(_card_html(it) for it in itens[:MAX])
+        st.markdown('<div class="gb-scroll"><div class="gb-stack">' + cards
+                    + '</div></div>', unsafe_allow_html=True)
+        if len(itens) > MAX:
+            st.markdown(
+                f'<div class="gb-upd">Exibindo {MAX} de {len(itens)} '
+                f'ocorrencias. Use os filtros para refinar.</div>',
+                unsafe_allow_html=True)
+
+with col_main:
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Ocorrencias (periodo)", len(itens_periodo))
+    m2.metric("Interdicoes",
+              sum(1 for i in itens_periodo if i.get("categoria") == "Interdicao"))
+    m3.metric("Acidentes",
+              sum(1 for i in itens_periodo if i.get("categoria") == "Acidente"))
+    m4.metric("Severidade alta",
+              sum(1 for i in itens_periodo if i.get("severidade") == "Alta"))
+    st.markdown(
+        f'<div class="gb-upd">Ultima atualizacao: {html.escape(lr_txt)} '
+        f'&nbsp;|&nbsp; Exibindo {len(itens)} de {len(itens_periodo)} no periodo'
+        f'</div>', unsafe_allow_html=True)
+    st.markdown('<div class="gb-h2">MAPA DAS OCORRENCIAS</div>',
+                unsafe_allow_html=True)
+    if st_folium is not None:
+        st_folium(mapa.construir_mapa(itens, usar_cluster=True),
+                  use_container_width=True, height=600, returned_objects=[])
+    else:
+        st.warning("Pacote streamlit-folium nao instalado. Mapa simplificado. "
+                   "Rode: pip install streamlit-folium")
+        _pts = [(i["lat"], i["lon"]) for i in itens
+                if i.get("lat") is not None and i.get("lon") is not None]
+        if _pts:
+            st.map({"lat": [p[0] for p in _pts], "lon": [p[1] for p in _pts]})
+
+# ---------- rodape / controle de versao ----------
+st.markdown(
+    f'<div class="gb-footer"><span class="gb-ver">v{html.escape(VERSAO)}</span>'
+    f'<span class="gb-foot-name">MONITORAMENTO RODOVIAS</span>'
+    f'<span>Linhas Guanabara &nbsp;|&nbsp; ultima atualizacao {html.escape(lr_txt)}'
+    f'</span></div>', unsafe_allow_html=True)
