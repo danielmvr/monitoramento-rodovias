@@ -38,6 +38,13 @@ CHIP_CLARO = {"#f7c01a"}  # fundos claros usam texto escuro
 def _txt_chip(cor):
     return "#161a2e" if str(cor).lower() in CHIP_CLARO else "#fff"
 
+
+MAP_ICON = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" '
+            'stroke="#ffffff" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round">'
+            '<path d="M12 21s-6-5.686-6-10a6 6 0 1 1 12 0c0 4.314-6 10-6 10z"/>'
+            '<circle cx="12" cy="11" r="2.5"/></svg>')
+
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 :root{
@@ -126,6 +133,21 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
 .gb-ver{ font-family:var(--pix); font-size:9px; color:#fff; background:var(--blue);
   border:2px solid var(--line); padding:5px 8px; }
 .gb-foot-name{ font-family:var(--pix); font-size:9px; color:var(--yellow); }
+.gb-row1{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:9px; }
+.gb-row1 .gb-chip{ margin:0; }
+.gb-actions{ margin-left:auto; display:inline-flex; gap:6px; align-items:center; }
+.gb-btn{ font-family:var(--pix); font-size:9px; color:#fff; background:var(--blue);
+  border:2px solid var(--line); padding:6px 8px; text-decoration:none; display:inline-block; }
+.gb-btn:hover{ filter:brightness(1.12); }
+.gb-iconbtn{ display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:26px; background:var(--blue); border:2px solid var(--line); }
+.gb-iconbtn:hover{ filter:brightness(1.12); }
+.gb-linhas{ font-size:11px; color:var(--muted); margin-top:9px; line-height:1.55;
+  border-top:2px dotted var(--paperline); padding-top:7px; cursor:help; }
+.gb-linhas b{ color:var(--primaryd); }
+.gb-side-upd{ font-size:11px; color:#aab0cc; margin:8px 0 2px; }
+.gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
+.gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
 
 st.markdown("<style>" + CSS + "</style>", unsafe_allow_html=True)
@@ -200,6 +222,12 @@ if st.sidebar.button("Atualizar agora", type="primary",
         rodar_coleta()
     st.rerun()
 
+_ult = st.session_state.get("last_run")
+_ult_txt = _ult.strftime("%d/%m/%Y %H:%M") if isinstance(_ult, dt.datetime) else "nunca"
+st.sidebar.markdown(
+    f'<div class="gb-side-upd">Ultimo rastreio: {_ult_txt}</div>',
+    unsafe_allow_html=True)
+
 st.sidebar.divider()
 auto = st.sidebar.checkbox("Atualizacao automatica", value=True)
 intervalo = st.sidebar.number_input(
@@ -262,9 +290,6 @@ def passa(it):
 itens = [i for i in itens_periodo if passa(i)]
 
 # ---------- layout: cards (esq.) | contadores + mapa (dir., maior) ----------
-lr = st.session_state.get("last_run")
-lr_txt = lr.strftime("%d/%m/%Y %H:%M") if isinstance(lr, dt.datetime) else "nunca"
-
 if not itens_all:
     st.info("Sem dados ainda. Clique em Atualizar agora na barra lateral "
             "para fazer a primeira varredura.")
@@ -277,7 +302,6 @@ def _card_html(it):
     sev = html.escape(it.get("severidade", ""))
     sevcor = SEV_COR.get(it.get("severidade"), "#6b6f86")
     titulo = html.escape(it.get("titulo", "(sem titulo)"))
-    resumo = html.escape(it.get("resumo", ""))
     local = html.escape(it.get("local", "-"))
     rod = html.escape(it.get("rodovia", "-"))
     fonte = html.escape(it.get("fonte", "-"))
@@ -286,22 +310,34 @@ def _card_html(it):
     link = it.get("link", "")
     titulo_html = (f'<a href="{html.escape(link)}" target="_blank">{titulo}</a>'
                    if link else titulo)
-    links = ""
+    acoes = ""
     if link:
-        links += f'<a href="{html.escape(link)}" target="_blank">Abrir noticia</a>'
+        acoes += (f'<a class="gb-btn" href="{html.escape(link)}" '
+                  f'target="_blank">Noticia</a>')
     if it.get("lat") is not None and it.get("lon") is not None:
-        links += (f'<a href="https://www.google.com/maps?q='
-                  f'{it["lat"]},{it["lon"]}" target="_blank">Ver no mapa</a>')
+        acoes += (f'<a class="gb-iconbtn" title="Ver no mapa" '
+                  f'aria-label="Ver no mapa" target="_blank" '
+                  f'href="https://www.google.com/maps?q={it["lat"]},{it["lon"]}">'
+                  f'{MAP_ICON}</a>')
+    linhas = it.get("linhas") or []
+    ltot = it.get("linhas_total", len(linhas))
+    linhas_html = ""
+    if ltot:
+        tip = "\n".join(linhas)
+        if ltot > len(linhas):
+            tip += f"\n(+{ltot - len(linhas)} outras)"
+        linhas_html = (f'<div class="gb-linhas" title="{html.escape(tip)}">'
+                       f'<b>Possiveis Linhas Afetadas</b> ({ltot})</div>')
     return (
         f'<div class="gb-card"><div class="gb-top" style="background:{cor}"></div>'
-        f'<div class="gb-cbody">'
+        f'<div class="gb-cbody"><div class="gb-row1">'
         f'<span class="gb-chip" style="background:{cor};color:{_txt_chip(cor)}">{cat}</span>'
         f'<span class="gb-chip" style="background:{sevcor};color:{_txt_chip(sevcor)}">{sev}</span>'
+        f'<span class="gb-actions">{acoes}</span></div>'
         f'<div class="gb-title">{titulo_html}</div>'
-        f'<div class="gb-resumo">{resumo}</div>'
         f'<div class="gb-meta"><b>Local:</b> {local} &nbsp;|&nbsp; '
         f'<b>Rodovia:</b> {rod}<br><b>Fonte:</b> {fonte} - {dtxt}</div>'
-        f'<div class="gb-links">{links}</div></div></div>')
+        f'{linhas_html}</div></div>')
 
 
 col_cards, col_main = st.columns([1, 2], gap="large")
@@ -332,9 +368,8 @@ with col_main:
     m4.metric("Severidade alta",
               sum(1 for i in itens_periodo if i.get("severidade") == "Alta"))
     st.markdown(
-        f'<div class="gb-upd">Ultima atualizacao: {html.escape(lr_txt)} '
-        f'&nbsp;|&nbsp; Exibindo {len(itens)} de {len(itens_periodo)} no periodo'
-        f'</div>', unsafe_allow_html=True)
+        f'<div class="gb-upd">Exibindo {len(itens)} de '
+        f'{len(itens_periodo)} no periodo</div>', unsafe_allow_html=True)
     st.markdown('<div class="gb-h2">MAPA DAS OCORRENCIAS</div>',
                 unsafe_allow_html=True)
     if st_folium is not None:
@@ -352,5 +387,4 @@ with col_main:
 st.markdown(
     f'<div class="gb-footer"><span class="gb-ver">v{html.escape(VERSAO)}</span>'
     f'<span class="gb-foot-name">MONITORAMENTO RODOVIAS</span>'
-    f'<span>Linhas Guanabara &nbsp;|&nbsp; ultima atualizacao {html.escape(lr_txt)}'
-    f'</span></div>', unsafe_allow_html=True)
+    f'<span>Linhas Guanabara</span></div>', unsafe_allow_html=True)

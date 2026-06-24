@@ -9,3 +9,6 @@ data/resultados_cache.json
 data/geocode_cache.json
 # segredos do Streamlit (nao versionar)
 .streamlit/secrets.toml
+
+# arquivo bruto grande (63MB) - so usado por gerar_rotas.py
+anatomiaLinhas.CSV

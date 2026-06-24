@@ -17,6 +17,7 @@ DEFAULT_APP = {
     "intervalo_auto_min": 5,
     "max_por_consulta": 8,
     "periodo_default": 1,
+    "linhas_raio_km": 40,
     "buscar_hubs": True,
     "fetch_artigo": True,
     "idioma_news": "pt-BR",
@@ -75,6 +76,24 @@ def load_cidades():
     """Lista de cidades da malha (planilha)."""
     try:
         with open(data_path("cidades.json"), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def load_linhas():
+    """Lista de linhas (pares origem-destino) da malha."""
+    try:
+        with open(data_path("linhas.json"), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def load_rotas():
+    """Rotas das linhas (paradas com cidade/coordenada)."""
+    try:
+        with open(data_path("linhas_rotas.json"), "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []

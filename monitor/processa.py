@@ -1,8 +1,9 @@
 """Resumo extrativo (sem API), classificacao e extracao de local."""
 import re
+import math
 import html
 
-from .config import normalizar, load_cidades
+from .config import normalizar, load_cidades, load_rotas
 
 try:
     import requests
@@ -65,6 +66,70 @@ def _cidades():
         _CIDADES = {normalizar(c): c for c in lst}
         _CIDADES_ORD = sorted(_CIDADES.keys(), key=len, reverse=True)
     return _CIDADES, _CIDADES_ORD
+
+
+_ROTAS = None
+
+
+def _seg_dist_km(plat, plon, alat, alon, blat, blon):
+    """Distancia (km) do ponto P ao segmento A-B (aprox. planar)."""
+    latm = math.radians((alat + blat + plat) / 3.0)
+    kx = 111.320 * math.cos(latm)
+    ky = 110.574
+    ax, ay = alon * kx, alat * ky
+    bx, by = blon * kx, blat * ky
+    px, py = plon * kx, plat * ky
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return math.hypot(px - ax, py - ay)
+    t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    cx, cy = ax + t * dx, ay + t * dy
+    return math.hypot(px - cx, py - cy)
+
+
+def _rotas():
+    """Lista de (label, [(lat,lon), ...]) com a rota geocodificada da linha."""
+    global _ROTAS
+    if _ROTAS is None:
+        out = []
+        for ln in load_rotas():
+            pts = [(s[2], s[3]) for s in ln.get("stops", [])
+                   if len(s) >= 4 and s[2] is not None and s[3] is not None]
+            if pts:
+                out.append((ln.get("label", ""), pts))
+        _ROTAS = out
+    return _ROTAS
+
+
+def _poly_dist_km(plat, plon, pts):
+    if not pts:
+        return float("inf")
+    if len(pts) == 1:
+        a = pts[0]
+        return _seg_dist_km(plat, plon, a[0], a[1], a[0], a[1])
+    melhor = float("inf")
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        d = _seg_dist_km(plat, plon, a[0], a[1], b[0], b[1])
+        if d < melhor:
+            melhor = d
+    return melhor
+
+
+def linhas_afetadas(lat, lon, limite=30, thresh_km=40.0):
+    """Linhas cuja ROTA passa a ate thresh_km do local do problema.
+    Retorna (lista_de_labels, total)."""
+    if lat is None or lon is None:
+        return [], 0
+    melhores = {}
+    for label, pts in _rotas():
+        d = _poly_dist_km(lat, lon, pts)
+        if d <= thresh_km:
+            if label not in melhores or d < melhores[label]:
+                melhores[label] = d
+    ordenado = sorted(melhores.items(), key=lambda x: x[1])
+    return [lab for lab, _ in ordenado[:limite]], len(ordenado)
 
 
 def limpar_html(txt):

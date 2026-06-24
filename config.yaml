@@ -10,8 +10,9 @@ app:
   periodo_default: 1        # filtro de periodo (dias) padrao no painel
   intervalo_auto_min: 5     # auto-refresh: re-coleta a cada X minutos
   max_por_consulta: 8       # maximo de noticias por rodovia/consulta
+  linhas_raio_km: 40        # raio (km) p/ uma linha ser considerada afetada
   buscar_hubs: true         # tambem busca noticias por cidades-hub
-  fetch_artigo: true        # baixa o artigo p/ resumo melhor (precisa internet)
+  fetch_artigo: false       # resumo nao e exibido no card; false = varredura rapida
   idioma_news: "pt-BR"
   pais_news: "BR"
 

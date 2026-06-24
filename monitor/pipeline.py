@@ -4,7 +4,7 @@ import datetime as dt
 
 from .config import load_config, data_path
 from .coleta import coletar
-from .processa import processar_item
+from .processa import processar_item, linhas_afetadas
 from .geocode import GeoCoder, rep_rodovias
 
 RESULT_FILE = data_path("resultados_cache.json")
@@ -59,6 +59,11 @@ def executar(cfg=None, fetch_fn=None, usar_nominatim=True, sleep_s=1.0,
     for c in crus:
         proc = processar_item(c, cfg)
         proc.update(geo.localizar(proc, rod_rep))
+        laf, ltot = linhas_afetadas(
+            proc.get("lat"), proc.get("lon"),
+            thresh_km=cfg["app"].get("linhas_raio_km", 40))
+        proc["linhas"] = laf
+        proc["linhas_total"] = ltot
         itens.append(proc)
     geo.salvar()
     itens.sort(key=lambda x: x.get("publicado") or dt.datetime.min,
