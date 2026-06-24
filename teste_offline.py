@@ -8,7 +8,7 @@ import sys
 import datetime as dt
 
 from monitor import config as cfgmod
-from monitor import pipeline, mapa
+from monitor import pipeline, mapa, frota
 
 RSS_AMOSTRA = b"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel><title>Amostra</title>
@@ -98,6 +98,29 @@ def main():
     rec = pipeline.carregar_resultados()
     assert rec and len(rec["itens"]) == 3
     assert isinstance(rec["itens"][0]["publicado"], dt.datetime)
+
+    # ---- frota (GPS): parse + filtros + proximidade (amostra) ----
+    hoje = dt.date.today()
+    ds = hoje.strftime("%d/%m/%Y")
+    hh = dt.datetime.now().strftime("%H:%M:%S")
+    csv_txt = (
+        "Veiculo,Placa,UF,Frota,DataHora,Lat,Lon,Local,Dist,SR,DR,SN,DN\n"
+        f"9921.U   ,AAA1234,RJ,UTIL,{ds} {hh},-21,77,-43,35,JFA,1,5,RAF,X,Y,Z\n"
+        f"11216.U  ,BBB1234,MG,UTIL,{ds} {hh},-22,90,-43,17,RIO,1,5,RAF,X,Y,Z\n"
+        "2310.GB  ,CCC1234,,GUANABARA,,,,,,SR,DR,SN,DN\n"
+        "C12501   ,DDD1234,,VALQUEIRE,,,,,,SR,DR,SN,DN\n"
+    )
+    fp = os.path.join(os.path.dirname(out_html) or ".", "frota_teste.csv")
+    with open(fp, "w", encoding="latin-1") as fcsv:
+        fcsv.write(csv_txt)
+    cars, ref = frota.carregar_frota(fp, janela_min=60, hoje=hoje)
+    print("frota: carros validos/frescos =", len(cars))
+    assert len(cars) == 2, "esperado 2 carros U (descarta .GB e C12501)"
+    assert all(c["empresa"] == "Util" for c in cars)
+    nprox = frota.marcar_proximos(cars, itens, raio_km=30)
+    print("frota: proximos<=30km =", nprox)
+    assert nprox >= 1, "9921.U deveria estar proximo de Juiz de Fora"
+    assert mapa.construir_mapa(itens, carros=cars) is not None
 
     print("\nOK: todos os testes passaram. Mapa salvo em", out_html)
 

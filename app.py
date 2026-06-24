@@ -4,8 +4,10 @@ Painel Streamlit (visual padrao pixel Guanabara).
 Execute com:  streamlit run app.py
 """
 import os
+import sys
 import base64
 import html
+import subprocess
 import datetime as dt
 
 import streamlit as st
@@ -16,6 +18,7 @@ except ImportError:
 
 from monitor import config as cfgmod
 from monitor import pipeline, mapa
+from monitor import frota
 from monitor.processa import CATEGORIAS
 from monitor import __version__ as VERSAO
 
@@ -216,7 +219,7 @@ st.markdown(
 # ---------- sidebar ----------
 st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
-if st.sidebar.button("Atualizar agora", type="primary",
+if st.sidebar.button("Atualizar Noticias", type="primary",
                      use_container_width=True):
     with st.spinner("Coletando noticias..."):
         rodar_coleta()
@@ -226,6 +229,79 @@ _ult = st.session_state.get("last_run")
 _ult_txt = _ult.strftime("%d/%m/%Y %H:%M") if isinstance(_ult, dt.datetime) else "nunca"
 st.sidebar.markdown(
     f'<div class="gb-side-upd">Ultimo rastreio: {_ult_txt}</div>',
+    unsafe_allow_html=True)
+
+# ---- GPS: fonte do arquivo (local na sua maquina OU link do OneDrive) ----
+_fcfg = CFG.get("frota", {})
+_gps_local = _fcfg.get("arquivo", "")
+_gps_url = (_fcfg.get("url", "") or "").strip()
+_gps_fetched = os.path.join(BASE, "data", "ultima_gps.csv")
+_na_maquina = bool(_gps_local) and os.path.isdir(os.path.dirname(_gps_local) or "")
+
+
+def _baixar_gps():
+    """Baixa o ultima.CSV de um link publico do OneDrive (uso na nuvem)."""
+    if not _gps_url:
+        return False
+    try:
+        import requests as _rq
+        u = _gps_url
+        r = _rq.get(u, timeout=60, allow_redirects=True)
+        c = r.content or b""
+        if c[:64].lstrip().lower().startswith((b"<!doctype", b"<html")):
+            sep = "&" if "?" in u else "?"
+            r = _rq.get(u + sep + "download=1", timeout=60, allow_redirects=True)
+            c = r.content or b""
+        if r.status_code == 200 and c and not c[:64].lstrip().lower().startswith(b"<"):
+            os.makedirs(os.path.dirname(_gps_fetched), exist_ok=True)
+            with open(_gps_fetched, "wb") as _f:
+                _f.write(c)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+if (not _na_maquina) and _gps_url and "gps_fetch_ok" not in st.session_state:
+    st.session_state["gps_fetch_ok"] = _baixar_gps()
+
+if _na_maquina:
+    _gps_path = _gps_local
+elif os.path.exists(_gps_fetched):
+    _gps_path = _gps_fetched
+else:
+    _gps_path = ""
+_gps_ok = bool(_gps_path) and os.path.exists(_gps_path)
+
+if st.sidebar.button("Atualizar GPS", use_container_width=True):
+    if _na_maquina:
+        with st.spinner("Gerando relatorio GPS no SIGLA (nao use o mouse)..."):
+            try:
+                _r = subprocess.run(
+                    [sys.executable, os.path.join(BASE, "sigla_gps.py")],
+                    capture_output=True, text=True, timeout=900)
+                _gok = (_r.returncode == 0)
+            except Exception:
+                _gok = False
+    elif _gps_url:
+        with st.spinner("Buscando ultimas posicoes..."):
+            _gok = _baixar_gps()
+    else:
+        _gok = False
+        st.sidebar.info("Configure frota.url (link do OneDrive) ou rode o app "
+                        "na maquina do SIGLA.")
+    if _gok:
+        st.sidebar.success("GPS atualizado.")
+        st.rerun()
+    elif _na_maquina or _gps_url:
+        st.sidebar.error("Nao foi possivel atualizar o GPS.")
+if _gps_ok:
+    _gtxt = dt.datetime.fromtimestamp(
+        os.path.getmtime(_gps_path)).strftime("%d/%m/%Y %H:%M")
+else:
+    _gtxt = "-"
+st.sidebar.markdown(
+    f'<div class="gb-side-upd">Ultima atualizacao GPS: {_gtxt}</div>',
     unsafe_allow_html=True)
 
 st.sidebar.divider()
@@ -265,6 +341,23 @@ st.sidebar.caption(
     f"Rodovias monitoradas: {len(CFG.get('rodovias', []))}  |  "
     f"Hubs: {len(CFG.get('hubs', []))}")
 
+# ---- controles GPS (carros) ----
+st.sidebar.divider()
+st.sidebar.markdown('<div class="gb-side-sub">CARROS (GPS)</div>',
+                    unsafe_allow_html=True)
+if _gps_ok:
+    _mostrar_carros = st.sidebar.checkbox(
+        "Mostrar carros", value=bool(_fcfg.get("mostrar", True)))
+    _so_prox = st.sidebar.checkbox("Apenas proximos a ocorrencias", value=True)
+    _raio = st.sidebar.number_input(
+        "Raio proximidade (km)", min_value=1, max_value=200,
+        value=int(_fcfg.get("raio_km", 15)), step=1)
+else:
+    _mostrar_carros = False
+    _so_prox = False
+    _raio = int(_fcfg.get("raio_km", 15))
+    st.sidebar.caption("GPS indisponivel (arquivo nao encontrado).")
+
 # ---------- filtragem ----------
 limite = _agora() - dt.timedelta(days=int(f_dias))
 
@@ -288,6 +381,15 @@ def passa(it):
 
 
 itens = [i for i in itens_periodo if passa(i)]
+
+# ---------- frota (GPS) ----------
+_carros = []
+_ref_gps = None
+_nprox = 0
+if _gps_ok and _mostrar_carros:
+    _carros, _ref_gps = frota.carregar_frota(
+        _gps_path, janela_min=int(_fcfg.get("janela_min", 60)))
+    _nprox = frota.marcar_proximos(_carros, itens, raio_km=float(_raio))
 
 # ---------- layout: cards (esq.) | contadores + mapa (dir., maior) ----------
 if not itens_all:
@@ -370,11 +472,19 @@ with col_main:
     st.markdown(
         f'<div class="gb-upd">Exibindo {len(itens)} de '
         f'{len(itens_periodo)} no periodo</div>', unsafe_allow_html=True)
+    if _gps_ok and _mostrar_carros:
+        _rtxt = _ref_gps.strftime("%d/%m %H:%M") if _ref_gps else "-"
+        st.markdown(
+            f'<div class="gb-upd">GPS: {len(_carros)} carros (ref {_rtxt}) '
+            f'&nbsp;|&nbsp; {_nprox} proximos (ate {int(_raio)} km)</div>',
+            unsafe_allow_html=True)
     st.markdown('<div class="gb-h2">MAPA DAS OCORRENCIAS</div>',
                 unsafe_allow_html=True)
     if st_folium is not None:
-        st_folium(mapa.construir_mapa(itens, usar_cluster=True),
-                  use_container_width=True, height=600, returned_objects=[])
+        st_folium(
+            mapa.construir_mapa(itens, usar_cluster=True,
+                                carros=(_carros or None), so_proximos=_so_prox),
+            use_container_width=True, height=600, returned_objects=[])
     else:
         st.warning("Pacote streamlit-folium nao instalado. Mapa simplificado. "
                    "Rode: pip install streamlit-folium")

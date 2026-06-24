@@ -145,3 +145,19 @@ Pontos de atencao:
 
 Alternativas gratuitas com o mesmo codigo: Hugging Face Spaces (tipo Streamlit)
 e Render (plano free, tambem hiberna).
+
+## Atualizar GPS (sem cloudflare)
+
+O botao "Atualizar GPS" funciona de dois jeitos, sem senha e sem tunel:
+
+- App rodando na maquina do SIGLA: o botao gera um novo relatorio na hora
+  (executa `sigla_gps.py`) e salva em `ultima.CSV`. Requer o `config.json`
+  com a secao `login` (igual ao v2). Para manter sempre fresco sem clicar,
+  rode `atualizar_gps_loop.bat` (gera a cada 10 min).
+- Site publico (Streamlit Cloud): preencha `config.yaml -> frota.url` com um
+  link publico do OneDrive apontando para o `ultima.CSV` (no OneDrive:
+  Compartilhar -> qualquer pessoa com o link). O botao apenas rebaixa o
+  arquivo mais recente e refaz o cruzamento; a geracao continua na sua
+  maquina (pelo `atualizar_gps_loop.bat`).
+
+Os passos de teclado da geracao ficam em `gps_passos.json` (editavel).

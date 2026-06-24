@@ -52,7 +52,7 @@ def _popup_html(item):
     """
 
 
-def construir_mapa(itens, usar_cluster=True):
+def construir_mapa(itens, usar_cluster=True, carros=None, so_proximos=False):
     pts = [(i["lat"], i["lon"]) for i in itens
            if i.get("lat") is not None and i.get("lon") is not None]
     if pts:
@@ -75,6 +75,29 @@ def construir_mapa(itens, usar_cluster=True):
             tooltip=it.get("titulo", "")[:80],
             icon=folium.Icon(color=cor, icon="info-sign"),
         ).add_to(alvo)
+
+    if carros:
+        fg = folium.FeatureGroup(name="Carros (GPS)").add_to(m)
+        for c in carros:
+            prox = c.get("proximo")
+            if so_proximos and not prox:
+                continue
+            dist = c.get("dist_ocor")
+            dtxt = c["dh"].strftime("%d/%m %H:%M") if c.get("dh") else ""
+            tip = f"{c.get('veiculo', '')} ({c.get('empresa', '')}) {dtxt}"
+            if dist is not None:
+                tip += f" - {dist:.0f} km da ocorrencia"
+            if prox:
+                folium.Marker(
+                    location=[c["lat"], c["lon"]], tooltip=tip,
+                    icon=folium.Icon(color="green", icon="bus", prefix="fa"),
+                ).add_to(fg)
+            else:
+                folium.CircleMarker(
+                    location=[c["lat"], c["lon"]], radius=3, color="#2f6fd0",
+                    fill=True, fill_color="#2f6fd0", fill_opacity=0.7,
+                    weight=1, tooltip=tip,
+                ).add_to(fg)
     return m
 
 

@@ -60,6 +60,9 @@ def load_config(path=None):
     cfg.setdefault("palavras_problema", [])
     cfg.setdefault("rodovias", [])
     cfg.setdefault("hubs", [])
+    fr = {"arquivo": "", "janela_min": 60, "raio_km": 15, "mostrar": True}
+    fr.update(cfg.get("frota") or {})
+    cfg["frota"] = fr
     return cfg
 
 

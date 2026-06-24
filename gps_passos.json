@@ -1,0 +1,32 @@
+{
+  "destino": "C:\\Users\\cco\\OneDrive - Guanabara Diesel\\ultimaposicarros\\ultima.CSV",
+  "espera_inicial_seg": 2,
+  "passos": [
+    {"acao": "press", "tecla": "alt"},
+    {"acao": "press", "tecla": "r"},
+    {"acao": "press", "tecla": "i"},
+    {"acao": "press", "tecla": "g"},
+    {"acao": "press", "tecla": "g"},
+    {"acao": "press", "tecla": "g"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "write", "texto": "{hoje}"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 10},
+    {"acao": "press", "tecla": "alt"},
+    {"acao": "press", "tecla": "a"},
+    {"acao": "press", "tecla": "l"},
+    {"acao": "press", "tecla": "down"},
+    {"acao": "press", "tecla": "down"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 2},
+    {"acao": "colar", "texto": "C:\\Users\\cco\\OneDrive - Guanabara Diesel\\ultimaposicarros"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 1},
+    {"acao": "hotkey", "teclas": ["ctrl", "a"]},
+    {"acao": "write", "texto": "ultima"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 1},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "hotkey", "teclas": ["alt", "f4"]}
+  ]
+}

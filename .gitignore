@@ -12,3 +12,10 @@ data/geocode_cache.json
 
 # arquivo bruto grande (63MB) - so usado por gerar_rotas.py
 anatomiaLinhas.CSV
+
+# credenciais/coords do SIGLA (nao versionar)
+config.json
+saida/
+
+# CSV de GPS baixado pela ponte (runtime)
+data/ultima_gps.csv
