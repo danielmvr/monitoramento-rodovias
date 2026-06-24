@@ -309,7 +309,7 @@ hubs:
 # --------------------------------------------------------------------------
 frota:
   arquivo: 'C:\Users\cco\OneDrive - Guanabara Diesel\ultimaposicarros\ultima.CSV'
-  url: ''            # link publico do OneDrive (a nuvem le o ultima.CSV daqui)
+  url: 'https://bcoguan02-my.sharepoint.com/:x:/g/personal/daniel_reis_util_com_br/IQD8_NZ1eTr0TqKidOpFMf0sAc8-CNAY8J_ttTiW0pS6O-k?e=Tg1MbW'            # link publico do OneDrive (a nuvem le o ultima.CSV daqui)
   janela_min: 60     # so posicoes dentro de X min a partir do horario mais recente
   raio_km: 15        # raio p/ marcar um carro como proximo de uma ocorrencia
   mostrar: true      # exibir a camada de carros por padrao
