@@ -154,12 +154,15 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
   text-decoration:none !important; }
 .gb-side-link:hover{ background:var(--primaryd); }
 .gb-side-link-top{ width:100%; text-align:center; margin:0 0 12px; }
-section[data-testid="stSidebar"] .st-key-abrir_carros button{
+section[data-testid="stSidebar"] .st-key-abrir_carros button,
+section[data-testid="stSidebar"] .st-key-voltar_mapa button{
   font-family:var(--pix); font-size:9px; color:#fff !important;
   background:var(--primary); border:2px solid var(--line); border-radius:0;
   padding:9px 10px; margin-bottom:6px; }
-section[data-testid="stSidebar"] .st-key-abrir_carros button p{ color:#fff !important; }
-section[data-testid="stSidebar"] .st-key-abrir_carros button:hover{ background:var(--primaryd); }
+section[data-testid="stSidebar"] .st-key-abrir_carros button p,
+section[data-testid="stSidebar"] .st-key-voltar_mapa button p{ color:#fff !important; }
+section[data-testid="stSidebar"] .st-key-abrir_carros button:hover,
+section[data-testid="stSidebar"] .st-key-voltar_mapa button:hover{ background:var(--primaryd); }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
@@ -241,9 +244,16 @@ st.markdown(
     f'</div></div>', unsafe_allow_html=True)
 
 # ---------- sidebar ----------
-if st.sidebar.button("Abrir tabela de carros", key="abrir_carros",
-                     use_container_width=True):
-    st.switch_page("pages/1_Carros_GPS.py")
+if st.session_state.get("view", "mapa") == "carros":
+    if st.sidebar.button("Voltar ao mapa", key="voltar_mapa",
+                         use_container_width=True):
+        st.session_state["view"] = "mapa"
+        st.rerun()
+else:
+    if st.sidebar.button("Abrir tabela de carros", key="abrir_carros",
+                         use_container_width=True):
+        st.session_state["view"] = "carros"
+        st.rerun()
 st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
 if st.sidebar.button("Atualizar Noticias", type="primary",
@@ -299,6 +309,58 @@ elif os.path.exists(_gps_fetched):
 else:
     _gps_path = ""
 _gps_ok = bool(_gps_path) and os.path.exists(_gps_path)
+
+
+def _tabela_carros(path, ok, fcfg):
+    """Visao 'tabela de carros' (no lugar da antiga subpagina pages/)."""
+    if st.button("Voltar ao mapa e noticias", key="voltar_mapa_top",
+                 type="primary"):
+        st.session_state["view"] = "mapa"
+        st.rerun()
+    st.markdown('<div class="gb-h2">CARROS - GPS</div>', unsafe_allow_html=True)
+    if not ok:
+        st.warning("Sem posicoes de GPS disponiveis (verifique o arquivo/link "
+                   "do OneDrive ou gere o relatorio).")
+        return
+    janela = int(fcfg.get("janela_min", 60))
+    carros, ref = frota.carregar_frota(path, janela_min=janela)
+    if not carros:
+        st.warning("Nenhum carro com posicao valida na janela atual.")
+        return
+    fc1, fc2 = st.columns([2, 1])
+    busca = fc1.text_input("Buscar carro",
+                           placeholder="ex.: 11216").strip().upper()
+    empresas = ["Todas"] + sorted({c.get("empresa", "") for c in carros
+                                   if c.get("empresa")})
+    emp = fc2.selectbox("Empresa", empresas)
+    linhas = []
+    for c in carros:
+        if busca and busca not in c.get("veiculo", "").upper():
+            continue
+        if emp != "Todas" and c.get("empresa") != emp:
+            continue
+        d = c.get("dist_local")
+        linhas.append({
+            "Carro": c.get("veiculo", ""),
+            "Empresa": c.get("empresa", ""),
+            "Ultima transmissao": _fmt_brt(c.get("dh")),
+            "Local mais proximo": c.get("local", ""),
+            "Dist. do local (km)": (round(d, 1)
+                                    if isinstance(d, (int, float)) else None),
+        })
+    st.caption(f"{len(linhas)} de {len(carros)} carros "
+               f"(janela {janela} min, ref {_fmt_brt(ref)})")
+    try:
+        import pandas as pd
+        st.dataframe(pd.DataFrame(linhas), use_container_width=True,
+                     hide_index=True, height=560)
+    except Exception:
+        st.table(linhas)
+
+
+if st.session_state.get("view", "mapa") == "carros":
+    _tabela_carros(_gps_path, _gps_ok, _fcfg)
+    st.stop()
 
 if st.sidebar.button("Atualizar GPS", use_container_width=True):
     if _na_maquina:
