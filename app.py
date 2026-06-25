@@ -555,7 +555,7 @@ with col_cards:
                 unsafe_allow_html=True)
 
 with col_main:
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Ocorrencias (periodo)", len(itens_periodo))
     m2.metric("Interdicoes",
               sum(1 for i in itens_periodo if i.get("categoria") == "Interdicao"))
@@ -563,6 +563,7 @@ with col_main:
               sum(1 for i in itens_periodo if i.get("categoria") == "Acidente"))
     m4.metric("Severidade alta",
               sum(1 for i in itens_periodo if i.get("severidade") == "Alta"))
+    m5.metric("Carros proximos", _nprox)
     st.markdown(
         f'<div class="gb-upd">Exibindo {len(itens)} de '
         f'{len(itens_periodo)} no periodo</div>', unsafe_allow_html=True)
