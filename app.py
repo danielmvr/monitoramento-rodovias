@@ -149,6 +149,10 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
   border-top:2px dotted var(--paperline); padding-top:7px; cursor:help; }
 .gb-linhas b{ color:var(--primaryd); }
 .gb-side-upd{ font-size:11px; color:#aab0cc; margin:8px 0 2px; }
+.gb-side-link{ display:inline-block; font-family:var(--pix); font-size:9px; color:#fff !important;
+  background:var(--primary); border:2px solid var(--line); padding:7px 9px; margin-top:8px;
+  text-decoration:none !important; }
+.gb-side-link:hover{ background:var(--primaryd); }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
@@ -369,6 +373,10 @@ else:
     _so_prox = False
     _raio = int(_fcfg.get("raio_km", 15))
     st.sidebar.caption("GPS indisponivel (arquivo nao encontrado).")
+
+st.sidebar.markdown(
+    '<a class="gb-side-link" href="Carros_GPS" target="_blank">'
+    'Abrir tabela de carros (nova aba)</a>', unsafe_allow_html=True)
 
 # ---------- filtragem ----------
 limite = _agora() - dt.timedelta(days=int(f_dias))

@@ -51,15 +51,16 @@ def _linhas(path):
             p = ln.rstrip("\n").rstrip("\r").split(",")
             if len(p) == 16:
                 rec = (p[0], p[3], p[4], p[5] + "." + p[6],
-                       p[7] + "." + p[8], p[9])
+                       p[7] + "." + p[8], p[9], p[10] + "." + p[11])
             elif len(p) == 13:
-                rec = (p[0], p[3], p[4], p[5], p[6], p[7])
+                rec = (p[0], p[3], p[4], p[5], p[6], p[7], p[8])
             else:
                 continue
-            veic, frota, dh, lat, lon, local = rec
+            veic, frota, dh, lat, lon, local, dist = rec
             out.append({"veiculo": veic.strip(), "frota": frota.strip(),
                         "dh": dh.strip(), "lat": lat.strip(),
-                        "lon": lon.strip(), "local": local.strip()})
+                        "lon": lon.strip(), "local": local.strip(),
+                        "dist": dist.strip()})
     return out
 
 
@@ -86,6 +87,7 @@ def carregar_frota(path, janela_min=60, hoje=None):
             "veiculo": r["veiculo"],
             "empresa": EMPRESA.get(r["veiculo"].split(".")[-1].upper(), ""),
             "dh": d, "lat": la, "lon": lo, "local": r["local"],
+            "dist_local": _to_float(r.get("dist", "")),
         })
 
     if not cand:
