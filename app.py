@@ -196,6 +196,12 @@ def _fmt_brt(t):
     return t.astimezone(TZ_BR).strftime("%d/%m/%Y %H:%M")
 
 
+def _fmt_dt(t, fmt="%d/%m/%Y %H:%M"):
+    """Formata o datetime como esta (ja em horario local do SIGLA/Brasilia);
+    nao aplica conversao de fuso, ao contrario de _fmt_brt."""
+    return t.strftime(fmt) if isinstance(t, dt.datetime) else "-"
+
+
 def _logo_uri():
     try:
         with open(LOGO, "rb") as f:
@@ -343,13 +349,13 @@ def _tabela_carros(path, ok, fcfg):
         linhas.append({
             "Carro": c.get("veiculo", ""),
             "Empresa": c.get("empresa", ""),
-            "Ultima transmissao": _fmt_brt(c.get("dh")),
+            "Ultima transmissao": _fmt_dt(c.get("dh")),
             "Local mais proximo": c.get("local", ""),
             "Dist. do local (km)": (round(d, 1)
                                     if isinstance(d, (int, float)) else None),
         })
     st.caption(f"{len(linhas)} de {len(carros)} carros "
-               f"(janela {janela} min, ref {_fmt_brt(ref)})")
+               f"(janela {janela} min, ref {_fmt_dt(ref)})")
     try:
         import pandas as pd
         st.dataframe(pd.DataFrame(linhas), use_container_width=True,
