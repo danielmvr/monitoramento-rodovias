@@ -154,11 +154,12 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
   text-decoration:none !important; }
 .gb-side-link:hover{ background:var(--primaryd); }
 .gb-side-link-top{ width:100%; text-align:center; margin:0 0 12px; }
-section[data-testid="stSidebar"] a[data-testid="stPageLink-NavLink"]{
-  font-family:var(--pix); font-size:9px; background:var(--primary);
-  border:2px solid var(--line); border-radius:0; padding:9px 10px; margin-bottom:12px; }
-section[data-testid="stSidebar"] a[data-testid="stPageLink-NavLink"]:hover{ background:var(--primaryd); }
-section[data-testid="stSidebar"] a[data-testid="stPageLink-NavLink"] *{ color:#fff !important; }
+section[data-testid="stSidebar"] .st-key-abrir_carros button{
+  font-family:var(--pix); font-size:9px; color:#fff !important;
+  background:var(--primary); border:2px solid var(--line); border-radius:0;
+  padding:9px 10px; margin-bottom:6px; }
+section[data-testid="stSidebar"] .st-key-abrir_carros button p{ color:#fff !important; }
+section[data-testid="stSidebar"] .st-key-abrir_carros button:hover{ background:var(--primaryd); }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
@@ -240,9 +241,9 @@ st.markdown(
     f'</div></div>', unsafe_allow_html=True)
 
 # ---------- sidebar ----------
-st.sidebar.page_link("pages/1_Carros_GPS.py",
-                     label="Abrir tabela de carros",
-                     use_container_width=True)
+if st.sidebar.button("Abrir tabela de carros", key="abrir_carros",
+                     use_container_width=True):
+    st.switch_page("pages/1_Carros_GPS.py")
 st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
 if st.sidebar.button("Atualizar Noticias", type="primary",
