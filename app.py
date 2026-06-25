@@ -307,6 +307,7 @@ def _baixar_gps():
 
 if (not _na_maquina) and _gps_url and "gps_fetch_ok" not in st.session_state:
     st.session_state["gps_fetch_ok"] = _baixar_gps()
+    st.session_state["last_gps_auto"] = _agora()
 
 if _na_maquina:
     _gps_path = _gps_local
@@ -397,17 +398,35 @@ else:
 st.sidebar.markdown(
     f'<div class="gb-side-upd">Ultima atualizacao GPS: {_gtxt}</div>',
     unsafe_allow_html=True)
+auto_gps = st.sidebar.checkbox("Atualizacao automatica GPS",
+                               value=bool(_fcfg.get("auto", True)))
+intervalo_gps = st.sidebar.number_input(
+    "Intervalo GPS (min)", min_value=5, max_value=240,
+    value=int(_fcfg.get("auto_min", 30)), step=5)
 
 st.sidebar.divider()
-auto = st.sidebar.checkbox("Atualizacao automatica", value=True)
+auto = st.sidebar.checkbox("Atualizacao automatica (noticias)", value=True)
 intervalo = st.sidebar.number_input(
-    "Intervalo (min)", min_value=5, max_value=240,
+    "Intervalo noticias (min)", min_value=5, max_value=240,
     value=int(APP.get("intervalo_auto_min", 5)), step=5)
 
-if auto and st_autorefresh is not None:
-    st_autorefresh(interval=int(intervalo) * 60 * 1000, key="auto_tick")
-elif auto and st_autorefresh is None:
+# auto-refresh: tica no menor intervalo habilitado (noticias e/ou GPS)
+_ticks = ([int(intervalo)] if auto else []) + \
+         ([int(intervalo_gps)] if auto_gps else [])
+if _ticks and st_autorefresh is not None:
+    st_autorefresh(interval=min(_ticks) * 60 * 1000, key="auto_tick")
+elif _ticks and st_autorefresh is None:
     st.sidebar.warning("Instale streamlit-autorefresh para auto-refresh.")
+
+# GPS automatico: na nuvem rebaixa o arquivo do OneDrive; na maquina local o
+# arquivo ja e atualizado pela automacao externa e relido a cada tick.
+if auto_gps and (not _na_maquina) and _gps_url:
+    _lastg = st.session_state.get("last_gps_auto")
+    if (_lastg is None) or (_agora() - _lastg
+                            >= dt.timedelta(minutes=int(intervalo_gps))):
+        with st.spinner("Atualizando GPS..."):
+            _baixar_gps()
+        st.session_state["last_gps_auto"] = _agora()
 
 if auto and st.session_state.get("last_run"):
     if _agora() - st.session_state["last_run"] >= dt.timedelta(
