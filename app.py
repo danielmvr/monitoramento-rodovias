@@ -399,16 +399,18 @@ st.sidebar.markdown(
     f'<div class="gb-side-upd">Ultima atualizacao GPS: {_gtxt}</div>',
     unsafe_allow_html=True)
 auto_gps = st.sidebar.checkbox("Atualizacao automatica GPS",
-                               value=bool(_fcfg.get("auto", True)))
+                               value=bool(_fcfg.get("auto", True)),
+                               key="auto_gps")
 intervalo_gps = st.sidebar.number_input(
     "Intervalo GPS (min)", min_value=5, max_value=240,
-    value=int(_fcfg.get("auto_min", 30)), step=5)
+    value=int(_fcfg.get("auto_min", 30)), step=5, key="intervalo_gps")
 
 st.sidebar.divider()
-auto = st.sidebar.checkbox("Atualizacao automatica (noticias)", value=True)
+auto = st.sidebar.checkbox("Atualizacao automatica (noticias)", value=True,
+                           key="auto_news")
 intervalo = st.sidebar.number_input(
     "Intervalo noticias (min)", min_value=5, max_value=240,
-    value=int(APP.get("intervalo_auto_min", 5)), step=5)
+    value=int(APP.get("intervalo_auto_min", 5)), step=5, key="intervalo_news")
 
 # auto-refresh: tica no menor intervalo habilitado (noticias e/ou GPS)
 _ticks = ([int(intervalo)] if auto else []) + \
@@ -442,12 +444,13 @@ rodovias_disp = sorted({i.get("rodovia", "")
                         for i in itens_all if i.get("rodovia")})
 cat_default = [c for c in ["Interdicao", "Congestionamento"] if c in CAT_NOMES]
 
-f_rod = st.sidebar.multiselect("Rodovia/Corredor", rodovias_disp)
-f_cat = st.sidebar.multiselect("Categoria", CAT_NOMES, default=cat_default)
+f_rod = st.sidebar.multiselect("Rodovia/Corredor", rodovias_disp, key="f_rod")
+f_cat = st.sidebar.multiselect("Categoria", CAT_NOMES, default=cat_default,
+                               key="f_cat")
 f_sev = st.sidebar.multiselect("Severidade", ["Alta", "Media", "Baixa"],
-                               default=["Alta", "Media"])
+                               default=["Alta", "Media"], key="f_sev")
 f_dias = st.sidebar.slider("Periodo (dias)", 1, 30,
-                           int(APP.get("periodo_default", 1)))
+                           int(APP.get("periodo_default", 1)), key="f_dias")
 
 st.sidebar.divider()
 st.sidebar.caption(
@@ -460,11 +463,13 @@ st.sidebar.markdown('<div class="gb-side-sub">CARROS (GPS)</div>',
                     unsafe_allow_html=True)
 if _gps_ok:
     _mostrar_carros = st.sidebar.checkbox(
-        "Mostrar carros", value=bool(_fcfg.get("mostrar", True)))
-    _so_prox = st.sidebar.checkbox("Apenas proximos a ocorrencias", value=True)
+        "Mostrar carros", value=bool(_fcfg.get("mostrar", True)),
+        key="mostrar_carros")
+    _so_prox = st.sidebar.checkbox("Apenas proximos a ocorrencias", value=True,
+                                   key="so_prox")
     _raio = st.sidebar.number_input(
         "Raio proximidade (km)", min_value=1, max_value=200,
-        value=int(_fcfg.get("raio_km", 15)), step=1)
+        value=int(_fcfg.get("raio_km", 15)), step=1, key="raio_km")
 else:
     _mostrar_carros = False
     _so_prox = False
