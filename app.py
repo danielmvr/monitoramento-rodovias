@@ -153,6 +153,7 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
   background:var(--primary); border:2px solid var(--line); padding:7px 9px; margin-top:8px;
   text-decoration:none !important; }
 .gb-side-link:hover{ background:var(--primaryd); }
+.gb-side-link-top{ width:100%; text-align:center; margin:0 0 12px; }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
@@ -234,6 +235,10 @@ st.markdown(
     f'</div></div>', unsafe_allow_html=True)
 
 # ---------- sidebar ----------
+st.sidebar.markdown(
+    '<a class="gb-side-link gb-side-link-top" href="/Carros_GPS" '
+    'target="_blank">Abrir tabela de carros (nova aba)</a>',
+    unsafe_allow_html=True)
 st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
 if st.sidebar.button("Atualizar Noticias", type="primary",
@@ -373,10 +378,6 @@ else:
     _so_prox = False
     _raio = int(_fcfg.get("raio_km", 15))
     st.sidebar.caption("GPS indisponivel (arquivo nao encontrado).")
-
-st.sidebar.markdown(
-    '<a class="gb-side-link" href="Carros_GPS" target="_blank">'
-    'Abrir tabela de carros (nova aba)</a>', unsafe_allow_html=True)
 
 # ---------- filtragem ----------
 limite = _agora() - dt.timedelta(days=int(f_dias))
