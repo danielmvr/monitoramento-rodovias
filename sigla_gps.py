@@ -67,6 +67,11 @@ try:
 except ImportError:
     pyperclip = None
 
+try:
+    import pygetwindow as gw
+except ImportError:
+    gw = None
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s | %(levelname)-7s | %(message)s")
 log = logging.getLogger("SIGLA-GPS")
@@ -88,6 +93,38 @@ def carregar_config(caminho="config.json"):
 
 
 # ---------- LOGIN (igual ao sigla_automacao_v2.py) ----------
+def _trazer_sigla_frente(cfg):
+    """Garante que a janela de login do SIGLA esteja na frente do prompt.
+    1) minimiza o console (cmd) para nao cobrir a tela do SIGLA;
+    2) ativa a janela do SIGLA pelo titulo, se 'login.titulo_janela' definido.
+    """
+    try:
+        import ctypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 6)  # 6 = SW_MINIMIZE
+    except Exception:
+        pass
+    titulo = (cfg.get("login", {}) or {}).get("titulo_janela", "")
+    if titulo and gw is not None:
+        try:
+            for w in gw.getAllWindows():
+                if titulo.lower() in (w.title or "").lower():
+                    try:
+                        w.minimize()
+                        w.restore()
+                    except Exception:
+                        pass
+                    try:
+                        w.activate()
+                    except Exception:
+                        pass
+                    break
+        except Exception:
+            pass
+    time.sleep(0.6)
+
+
 def abrir_sigla(cfg):
     exe = cfg.get("login", {}).get("executavel") or EXECUTAVEL_PADRAO
     if not Path(exe).exists():
@@ -101,6 +138,7 @@ def abrir_sigla(cfg):
 def fazer_login(cfg):
     login = cfg["login"]
     log.info("Login como %s", login.get("usuario", "?"))
+    _trazer_sigla_frente(cfg)
     pyautogui.click(login["campo_usuario"]["x"], login["campo_usuario"]["y"])
     time.sleep(0.3)
     pyautogui.hotkey("ctrl", "a")

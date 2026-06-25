@@ -169,6 +169,19 @@ def _agora():
     return dt.datetime.now()
 
 
+TZ_BR = dt.timezone(dt.timedelta(hours=-3))
+
+
+def _fmt_brt(t):
+    """Formata um datetime no horario de Brasilia (UTC-3), independente do
+    fuso do servidor (Streamlit Cloud roda em UTC)."""
+    if not isinstance(t, dt.datetime):
+        return "-"
+    if t.tzinfo is None:
+        t = t.astimezone()   # interpreta como horario local do servidor
+    return t.astimezone(TZ_BR).strftime("%d/%m/%Y %H:%M")
+
+
 def _logo_uri():
     try:
         with open(LOGO, "rb") as f:
@@ -226,7 +239,7 @@ if st.sidebar.button("Atualizar Noticias", type="primary",
     st.rerun()
 
 _ult = st.session_state.get("last_run")
-_ult_txt = _ult.strftime("%d/%m/%Y %H:%M") if isinstance(_ult, dt.datetime) else "nunca"
+_ult_txt = _fmt_brt(_ult) if isinstance(_ult, dt.datetime) else "nunca"
 st.sidebar.markdown(
     f'<div class="gb-side-upd">Ultimo rastreio: {_ult_txt}</div>',
     unsafe_allow_html=True)
@@ -296,8 +309,7 @@ if st.sidebar.button("Atualizar GPS", use_container_width=True):
     elif _na_maquina or _gps_url:
         st.sidebar.error("Nao foi possivel atualizar o GPS.")
 if _gps_ok:
-    _gtxt = dt.datetime.fromtimestamp(
-        os.path.getmtime(_gps_path)).strftime("%d/%m/%Y %H:%M")
+    _gtxt = _fmt_brt(dt.datetime.fromtimestamp(os.path.getmtime(_gps_path)))
 else:
     _gtxt = "-"
 st.sidebar.markdown(

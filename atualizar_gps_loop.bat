@@ -5,7 +5,7 @@ REM  SIGLA a cada N minutos (assim o painel/site sempre tem dados
 REM  recentes). Feche a janela para parar.
 REM ============================================================
 cd /d "%~dp0"
-set SEG=1800
+set SEG=600
 :loop
 echo [%date% %time%] Gerando relatorio GPS...
 python sigla_gps.py
