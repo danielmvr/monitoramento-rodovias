@@ -155,13 +155,16 @@ section[data-testid="stSidebar"]{ border-right:4px solid var(--line); }
 .gb-side-link:hover{ background:var(--primaryd); }
 .gb-side-link-top{ width:100%; text-align:center; margin:0 0 12px; }
 section[data-testid="stSidebar"] .st-key-abrir_carros button,
+section[data-testid="stSidebar"] .st-key-abrir_atrasos button,
 section[data-testid="stSidebar"] .st-key-voltar_mapa button{
   font-family:var(--pix); font-size:9px; color:#fff !important;
   background:var(--primary); border:2px solid var(--line); border-radius:0;
   padding:9px 10px; margin-bottom:6px; }
 section[data-testid="stSidebar"] .st-key-abrir_carros button p,
+section[data-testid="stSidebar"] .st-key-abrir_atrasos button p,
 section[data-testid="stSidebar"] .st-key-voltar_mapa button p{ color:#fff !important; }
 section[data-testid="stSidebar"] .st-key-abrir_carros button:hover,
+section[data-testid="stSidebar"] .st-key-abrir_atrasos button:hover,
 section[data-testid="stSidebar"] .st-key-voltar_mapa button:hover{ background:var(--primaryd); }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
@@ -250,7 +253,8 @@ st.markdown(
     f'</div></div>', unsafe_allow_html=True)
 
 # ---------- sidebar ----------
-if st.session_state.get("view", "mapa") == "carros":
+_view_atual = st.session_state.get("view", "mapa")
+if _view_atual in ("carros", "atrasos"):
     if st.sidebar.button("Voltar ao mapa", key="voltar_mapa",
                          use_container_width=True):
         st.session_state["view"] = "mapa"
@@ -260,6 +264,16 @@ else:
                          use_container_width=True):
         st.session_state["view"] = "carros"
         st.rerun()
+    if st.sidebar.button("Acompanhamento de Atrasos", key="abrir_atrasos",
+                         use_container_width=True):
+        st.session_state["view"] = "atrasos"
+        st.rerun()
+
+if _view_atual == "atrasos":
+    from monitor import atrasos_page
+    atrasos_page.render(CFG, BASE, _agora())
+    st.stop()
+
 st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
 if st.sidebar.button("Atualizar Noticias", type="primary",

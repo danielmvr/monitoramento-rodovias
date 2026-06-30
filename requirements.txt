@@ -1,4 +1,7 @@
 streamlit>=1.33
+pandas>=2.0
+numpy>=1.24
+jinja2>=3.0
 streamlit-folium>=0.20
 folium>=0.16
 feedparser>=6.0

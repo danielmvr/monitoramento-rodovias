@@ -72,6 +72,13 @@ try:
 except ImportError:
     gw = None
 
+# Fila de prioridade: cede o teclado ao FLUXO (PonteWhats) quando ele envia.
+# Fallback gracioso: se o modulo nao existir, o script roda como antes.
+try:
+    import fila_prioridade as fila
+except Exception:
+    fila = None
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s | %(levelname)-7s | %(message)s")
 log = logging.getLogger("SIGLA-GPS")
@@ -137,16 +144,27 @@ def abrir_sigla(cfg):
 
 def fazer_login(cfg):
     login = cfg["login"]
+    titulo = login.get("titulo_janela", "")
     log.info("Login como %s", login.get("usuario", "?"))
+
+    def _ceder():
+        # Cede o teclado ao Fluxo (se ativo) e re-foca o SIGLA antes de continuar.
+        if fila is not None:
+            fila.aguardar_fluxo(reativar_titulo=titulo, log=log.info)
+
+    _ceder()
     _trazer_sigla_frente(cfg)
+    _ceder()
     pyautogui.click(login["campo_usuario"]["x"], login["campo_usuario"]["y"])
     time.sleep(0.3)
     pyautogui.hotkey("ctrl", "a")
     pyautogui.typewrite(login["usuario"], interval=0.03)
+    _ceder()
     pyautogui.click(login["campo_senha"]["x"], login["campo_senha"]["y"])
     time.sleep(0.3)
     pyautogui.hotkey("ctrl", "a")
     pyautogui.typewrite(login["senha"], interval=0.03)
+    _ceder()
     pyautogui.click(login["botao_login"]["x"], login["botao_login"]["y"])
     time.sleep(login.get("espera_apos_login_seg", 5))
 
@@ -160,9 +178,15 @@ def _subst(txt):
             .replace("{hoje_digitos}", agora.strftime("%d%m%Y")))
 
 
-def executar_passos(passos):
-    """Executa a lista de passos (acoes de teclado/mouse) da config."""
+def executar_passos(passos, titulo_sigla=None):
+    """Executa a lista de passos (acoes de teclado/mouse) da config.
+
+    Antes de CADA passo, cede o teclado ao FLUXO se ele estiver enviando
+    (WhatsApp em primeiro plano) e re-foca o SIGLA ao retomar.
+    """
     for i, st in enumerate(passos, 1):
+        if fila is not None:
+            fila.aguardar_fluxo(reativar_titulo=titulo_sigla, log=log.info)
         acao = (st.get("acao") or "").lower()
         log.info("Passo %d/%d: %s", i, len(passos), acao or st)
         if acao == "hotkey":
@@ -199,6 +223,11 @@ def main():
     args = ap.parse_args()
 
     cfg = carregar_config(args.config)
+    titulo_sigla = ((cfg.get("login") or {}).get("titulo_janela") or "")
+    if fila is not None:
+        log.info("Coordenacao de prioridade ATIVA: News cede o teclado ao Fluxo (WhatsApp) a cada passo.")
+    else:
+        log.warning("Coordenacao de prioridade INATIVA (fila_prioridade.py ausente): rodando SEM ceder ao Fluxo.")
     gps = cfg.get("gps")
     if not gps:
         fb = BASE / "gps_passos.json"
@@ -209,6 +238,9 @@ def main():
             gps = {}
     passos = gps.get("passos", [])
     destino = gps.get("destino", "")
+
+    if fila is not None:
+        fila.aguardar_fluxo(reativar_titulo=titulo_sigla, log=log.info)
 
     if not args.sem_login:
         abrir_sigla(cfg)
@@ -222,7 +254,7 @@ def main():
         sys.exit(4)
 
     log.info("Executando %d passos de geracao do relatorio...", len(passos))
-    executar_passos(passos)
+    executar_passos(passos, titulo_sigla)
 
     if destino:
         d = Path(destino)
@@ -231,6 +263,27 @@ def main():
             log.info("Arquivo destino OK: %s (atualizado ha %.0fs)", d, idade)
         else:
             log.warning("Arquivo destino nao encontrado apos os passos: %s", d)
+
+    # --- segunda geracao na mesma sessao (SIGLA segue aberto): ATRASOS ---
+    atr = cfg.get("atrasos")
+    if not atr:
+        fa = BASE / "atrasos_passos.json"
+        if fa.exists():
+            atr = json.loads(fa.read_text(encoding="utf-8"))
+            log.info("Passos de atrasos carregados de %s", fa.name)
+    if atr and atr.get("passos"):
+        time.sleep(float(atr.get("espera_inicial_seg", 1)))
+        log.info("Gerando relatorio de ATRASOS (%d passos)...", len(atr["passos"]))
+        executar_passos(atr["passos"], titulo_sigla)
+        d2 = Path(atr.get("destino", ""))
+        if atr.get("destino") and d2.exists():
+            log.info("Atrasos OK: %s (atualizado ha %.0fs)", d2,
+                     time.time() - d2.stat().st_mtime)
+        elif atr.get("destino"):
+            log.warning("Atrasos: destino nao encontrado apos os passos: %s", d2)
+    else:
+        log.info("Sem passos de atrasos (atrasos_passos.json ausente); pulado.")
+
     log.info("Concluido.")
 
 

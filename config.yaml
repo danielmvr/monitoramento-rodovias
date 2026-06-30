@@ -313,3 +313,17 @@ frota:
   janela_min: 60
   raio_km: 15
   mostrar: true
+
+# --------------------------------------------------------------------------
+# ATRASOS - relatorio de pontualidade comercial do SIGLA (atrasos.TXT).
+# Mesmo esquema do GPS: 'arquivo' = caminho local (pasta OneDrive); 'url' =
+# link publico do OneDrive (usado na nuvem). limite_min/frescor_min = regra
+# do core. auto/auto_min = atualizacao automatica do painel.
+# --------------------------------------------------------------------------
+atrasos:
+  arquivo: 'C:\Users\cco\OneDrive - Guanabara Diesel\ultimaposicarros\atrasos.TXT'
+  url: 'https://bcoguan02-my.sharepoint.com/:t:/g/personal/daniel_reis_util_com_br/IQCkKEUxiLDvS6LjAtdnkIUIAW68ALmSU1RmaVHwhJBvc-A?e=CbBnmD'
+  limite_min: 60
+  frescor_min: 180
+  auto: true
+  auto_min: 30
