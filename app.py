@@ -426,9 +426,19 @@ intervalo = st.sidebar.number_input(
     "Intervalo noticias (min)", min_value=5, max_value=240,
     value=int(APP.get("intervalo_auto_min", 5)), step=5, key="intervalo_news")
 
-# auto-refresh: tica no menor intervalo habilitado (noticias e/ou GPS)
+# atrasos: baixar em segundo plano (nuvem) tambem fora da aba de atrasos
+_acfg = CFG.get("atrasos", {})
+_atr_url = (_acfg.get("url", "") or "").strip()
+_atr_namaquina = bool(_acfg.get("arquivo", "")) and \
+    os.path.isdir(os.path.dirname(_acfg.get("arquivo", "")) or "")
+_atr_int = int(st.session_state.get("atr_intervalo") or _acfg.get("auto_min", 30))
+_atr_bg = (bool(st.session_state.get("atr_auto", _acfg.get("auto", True)))
+           and (not _atr_namaquina) and bool(_atr_url))
+
+# auto-refresh: tica no menor intervalo habilitado (noticias, GPS e/ou atrasos)
 _ticks = ([int(intervalo)] if auto else []) + \
-         ([int(intervalo_gps)] if auto_gps else [])
+         ([int(intervalo_gps)] if auto_gps else []) + \
+         ([_atr_int] if _atr_bg else [])
 if _ticks and st_autorefresh is not None:
     st_autorefresh(interval=min(_ticks) * 60 * 1000, key="auto_tick")
 elif _ticks and st_autorefresh is None:
@@ -443,6 +453,15 @@ if auto_gps and (not _na_maquina) and _gps_url:
         with st.spinner("Atualizando GPS..."):
             _baixar_gps()
         st.session_state["last_gps_auto"] = _agora()
+
+# atrasos automatico (nuvem): rebaixa o TXT em segundo plano, mesmo fora da aba
+if _atr_bg:
+    _lasta = st.session_state.get("last_atr_auto")
+    if (_lasta is None) or (_agora() - _lasta
+                            >= dt.timedelta(minutes=_atr_int)):
+        from monitor import atrasos_page as _ap
+        _ap._baixar(_atr_url, os.path.join(BASE, "data", "atrasos.txt"))
+        st.session_state["last_atr_auto"] = _agora()
 
 if auto and st.session_state.get("last_run"):
     if _agora() - st.session_state["last_run"] >= dt.timedelta(
