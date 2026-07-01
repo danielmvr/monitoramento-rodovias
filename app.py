@@ -164,8 +164,13 @@ section[data-testid="stSidebar"] .st-key-abrir_carros button p,
 section[data-testid="stSidebar"] .st-key-abrir_atrasos button p,
 section[data-testid="stSidebar"] .st-key-voltar_mapa button p{ color:#fff !important; }
 section[data-testid="stSidebar"] .st-key-abrir_carros button:hover,
-section[data-testid="stSidebar"] .st-key-abrir_atrasos button:hover,
 section[data-testid="stSidebar"] .st-key-voltar_mapa button:hover{ background:var(--primaryd); }
+/* Atrasos: destaque em vinho, diferente do azul do "Abrir tabela de carros" */
+section[data-testid="stSidebar"] .st-key-abrir_atrasos button{
+  background:var(--wine); border-color:var(--line); }
+section[data-testid="stSidebar"] .st-key-abrir_atrasos button:hover{ background:#7d1f34; }
+/* esconde a navegacao automatica de paginas (usamos a alternancia por botoes) */
+div[data-testid="stSidebarNav"]{ display:none; }
 .gb-btn, .gb-iconbtn{ color:#fff !important; text-decoration:none !important; }
 .gb-btn:hover, .gb-iconbtn:hover{ text-decoration:none !important; filter:brightness(1.12); }
 """
