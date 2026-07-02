@@ -257,6 +257,11 @@ st.markdown(
     f'<small>Linhas Guanabara - interdicoes, transito e ocorrencias</small>'
     f'</div></div>', unsafe_allow_html=True)
 
+# ---------- deep-link via URL (?view=atrasos ou ?view=carros) ----------
+_qp_view = st.query_params.get("view")
+if _qp_view in ("carros", "atrasos") and "view" not in st.session_state:
+    st.session_state["view"] = _qp_view
+
 # ---------- sidebar ----------
 _view_atual = st.session_state.get("view", "mapa")
 if _view_atual in ("carros", "atrasos"):

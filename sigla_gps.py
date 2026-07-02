@@ -252,6 +252,8 @@ def main():
     ap.add_argument("--sem-login", action="store_true",
                     help="pula abrir/login (SIGLA ja aberto e logado)")
     ap.add_argument("--config", default="config.json")
+    ap.add_argument("--nao-fechar", action="store_true",
+                    help="nao fecha o SIGLA ao fim (util para depurar)")
     args = ap.parse_args()
 
     cfg = carregar_config(args.config)
