@@ -6,7 +6,11 @@ A fonte segue o mesmo esquema do GPS: arquivo local (pasta OneDrive) na maquina 
 SIGLA, ou download de um link publico do OneDrive quando rodando na nuvem.
 
 Exibe metricas, duas abas (Atrasos / Anomalias) com filtro, horarios e atraso/silencio
-em HH:MM, e botao de download. Refresh manual e automatico por intervalo.
+em HH:MM, onda de calor no atraso e botao de download.
+
+Cruza cada carro atrasado com a ULTIMA POSICAO do GPS (mesmo identificador de carro):
+uma coluna "Mapa" com icone que abre a posicao no Google Maps, e um mapa in-screen
+com os carros atrasados localizados.
 """
 import os
 import datetime as dt
@@ -20,10 +24,11 @@ except ImportError:
     st_autorefresh = None
 
 import core
+from monitor import frota
 
 
 def _baixar(url, destino):
-    """Baixa o atrasos.TXT de um link publico do OneDrive (uso na nuvem)."""
+    """Baixa um arquivo de um link publico do OneDrive (uso na nuvem)."""
     if not url:
         return False
     try:
@@ -65,12 +70,57 @@ def _fmt_hhmm(m):
     return f"{sinal}{m // 60:02d}:{m % 60:02d}"
 
 
-def _disp(dfin, anomalia):
+def _gps_path(cfg, base_dir, baixar=False):
+    """Resolve o caminho do relatorio de ultimas posicoes (GPS). Se baixar=True
+    e estiver na nuvem, rebaixa o arquivo do OneDrive antes de resolver."""
+    fcfg = (cfg or {}).get("frota", {})
+    local = fcfg.get("arquivo", "")
+    url = (fcfg.get("url", "") or "").strip()
+    fetched = os.path.join(base_dir, "data", "ultima_gps.csv")
+    na_maquina = bool(local) and os.path.isdir(os.path.dirname(local) or "")
+    if na_maquina:
+        return local
+    if baixar and url:
+        _baixar(url, fetched)
+    if os.path.exists(fetched):
+        return fetched
+    if url and _baixar(url, fetched):
+        return fetched
+    return ""
+
+
+def _posicoes_gps(cfg, base_dir):
+    """Ultima posicao GPS por carro: dict veiculo(maiusculo) -> registro do frota.
+    Janela ampla (dia) para localizar tambem carros que transmitiram ha mais tempo."""
+    path = _gps_path(cfg, base_dir, baixar=False)
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        carros, _ref = frota.carregar_frota(path, janela_min=1440)
+    except Exception:
+        return {}
+    pos = {}
+    for c in carros:
+        v = str(c.get("veiculo", "")).strip().upper()
+        if v and c.get("lat") is not None and c.get("lon") is not None:
+            pos[v] = c
+    return pos
+
+
+def _map_url(veiculo, pos):
+    c = pos.get(str(veiculo).strip().upper())
+    if c and c.get("lat") is not None and c.get("lon") is not None:
+        return f"https://www.google.com/maps?q={c['lat']},{c['lon']}"
+    return ""
+
+
+def _disp(dfin, anomalia, pos):
     """Monta o DataFrame de exibicao a partir da saida do core."""
     if dfin is None or dfin.empty:
         return pd.DataFrame()
     out = pd.DataFrame()
     out["Carro"] = dfin["prefixo_veiculo"].fillna("").astype(str).str.strip()
+    out["Mapa"] = out["Carro"].map(lambda v: _map_url(v, pos))
     out["Linha"] = dfin["linha"].fillna("").astype(str)
     if anomalia:
         out["Categoria"] = dfin["categoria"].fillna("").astype(str)
@@ -119,8 +169,8 @@ def _grad_atraso(col):
     return estilos
 
 
-def _tabela(dfin, busca, anomalia):
-    disp = _disp(dfin, anomalia)
+def _tabela(dfin, busca, anomalia, pos):
+    disp = _disp(dfin, anomalia, pos)
     if busca and not disp.empty:
         mask = (disp["Carro"].str.upper().str.contains(busca, na=False, regex=False)
                 | disp["Linha"].str.upper().str.contains(busca, na=False, regex=False)
@@ -130,16 +180,21 @@ def _tabela(dfin, busca, anomalia):
         st.info("Nada para exibir com os filtros atuais.")
         return
     disp = disp.reset_index(drop=True)
+    colcfg = {"Mapa": st.column_config.LinkColumn(
+        "Mapa", display_text="🗺️", width="small",
+        help="Abre a posicao atual do carro no Google Maps (nova aba)")}
     try:
         sty = (disp.style
                .format({"Atraso": _fmt_hhmm, "Silencio": _fmt_hhmm}, na_rep="-")
                .apply(_grad_atraso, subset=["Atraso"]))
-        st.dataframe(sty, use_container_width=True, hide_index=True, height=520)
+        st.dataframe(sty, use_container_width=True, hide_index=True, height=520,
+                     column_config=colcfg)
     except Exception:  # fallback sem onda de calor (ex.: jinja2 ausente)
         plano = disp.copy()
         plano["Atraso"] = plano["Atraso"].map(_fmt_hhmm)
         plano["Silencio"] = plano["Silencio"].map(_fmt_hhmm)
-        st.dataframe(plano, use_container_width=True, hide_index=True, height=520)
+        st.dataframe(plano, use_container_width=True, hide_index=True, height=520,
+                     column_config=colcfg)
     csv = disp.copy()
     csv["Atraso"] = csv["Atraso"].map(_fmt_hhmm)
     csv["Silencio"] = csv["Silencio"].map(_fmt_hhmm)
@@ -147,6 +202,43 @@ def _tabela(dfin, busca, anomalia):
         "Baixar CSV", csv.to_csv(index=False).encode("utf-8-sig"),
         file_name=("anomalias.csv" if anomalia else "atrasos.csv"),
         mime="text/csv", key=("dl_anom" if anomalia else "dl_atr"))
+
+
+def _mapa_atrasos(A, pos):
+    """Mapa in-screen com os carros atrasados que tem ultima posicao GPS."""
+    linhas = []
+    for _, r in A.iterrows():
+        c = pos.get(str(r.get("prefixo_veiculo", "")).strip().upper())
+        if c and c.get("lat") is not None and c.get("lon") is not None:
+            linhas.append((str(r.get("prefixo_veiculo", "")).strip(),
+                           float(c["lat"]), float(c["lon"]), c.get("local", ""),
+                           str(r.get("linha", "")), r.get("atraso_min"), c.get("dh")))
+    st.markdown('<div class="gb-h2">LOCALIZACAO DOS CARROS ATRASADOS (GPS)</div>',
+                unsafe_allow_html=True)
+    if not linhas:
+        st.caption("Sem posicao GPS para os carros atrasados no momento "
+                   "(o relatorio de ultimas posicoes pode nao cobri-los).")
+        return
+    try:
+        import folium
+        from streamlit_folium import st_folium
+    except Exception:
+        st.map(pd.DataFrame([(x[1], x[2]) for x in linhas], columns=["lat", "lon"]))
+        return
+    lats = [x[1] for x in linhas]
+    lons = [x[2] for x in linhas]
+    m = folium.Map(location=[sum(lats) / len(lats), sum(lons) / len(lons)],
+                   zoom_start=6, tiles="CartoDB dark_matter")
+    for v, lat, lon, local, linha, atr, dh in linhas:
+        pop = (f"<b>{v}</b><br>{linha}<br>Atraso: {_fmt_hhmm(atr)}"
+               f"<br>Local: {local}<br>GPS: {_fmt_dt(dh)}")
+        folium.Marker([lat, lon], tooltip=f"{v} ({_fmt_hhmm(atr)})",
+                      popup=folium.Popup(pop, max_width=260),
+                      icon=folium.Icon(color="red")).add_to(m)
+    if len(linhas) > 1:
+        m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+    st_folium(m, use_container_width=True, height=420, returned_objects=[],
+              key=f"mapa_atrasos_{len(linhas)}_{lats[0]:.3f}_{lons[0]:.3f}")
 
 
 def render(cfg, base_dir, agora_dt):
@@ -157,9 +249,10 @@ def render(cfg, base_dir, agora_dt):
     fetched = os.path.join(base_dir, "data", "atrasos.txt")
     na_maquina = bool(local) and os.path.isdir(os.path.dirname(local) or "")
 
-    # primeira busca na nuvem (uma vez por sessao)
+    # primeira busca na nuvem (uma vez por sessao): atrasos + GPS juntos
     if (not na_maquina) and url and "atr_fetch_ok" not in st.session_state:
         st.session_state["atr_fetch_ok"] = _baixar(url, fetched)
+        _gps_path(cfg, base_dir, baixar=True)
         st.session_state["last_atr_auto"] = agora_dt
 
     if na_maquina:
@@ -192,8 +285,9 @@ def render(cfg, base_dir, agora_dt):
     if st.sidebar.button("Atualizar atrasos", use_container_width=True,
                          key="atr_btn"):
         if (not na_maquina) and url:
-            with st.spinner("Buscando relatorio de atrasos..."):
+            with st.spinner("Buscando relatorios (atrasos + GPS)..."):
                 _baixar(url, fetched)
+                _gps_path(cfg, base_dir, baixar=True)
             st.session_state["last_atr_auto"] = agora_dt
             st.rerun()
         elif na_maquina:
@@ -201,12 +295,8 @@ def render(cfg, base_dir, agora_dt):
         else:
             st.sidebar.info("Configure atrasos.url (link do OneDrive).")
 
-    if na_maquina and os.path.exists(path):
-        _atxt = pd.Timestamp(os.path.getmtime(path), unit="s").strftime("%d/%m %H:%M")
-    elif ok:
-        _atxt = pd.Timestamp(os.path.getmtime(path), unit="s").strftime("%d/%m %H:%M")
-    else:
-        _atxt = "-"
+    _atxt = (pd.Timestamp(os.path.getmtime(path), unit="s").strftime("%d/%m %H:%M")
+             if ok else "-")
     st.sidebar.markdown(
         f'<div class="gb-side-upd">Arquivo atualizado: {_atxt}</div>',
         unsafe_allow_html=True)
@@ -222,8 +312,9 @@ def render(cfg, base_dir, agora_dt):
     if auto_a and (not na_maquina) and url:
         la = st.session_state.get("last_atr_auto")
         if (la is None) or (agora_dt - la >= dt.timedelta(minutes=int(intervalo_a))):
-            with st.spinner("Atualizando atrasos..."):
+            with st.spinner("Atualizando..."):
                 _baixar(url, fetched)
+                _gps_path(cfg, base_dir, baixar=True)
             st.session_state["last_atr_auto"] = agora_dt
 
     if not ok:
@@ -240,13 +331,17 @@ def render(cfg, base_dir, agora_dt):
         st.error(f"Falha ao processar o relatorio de atrasos: {e}")
         return
 
+    pos = _posicoes_gps(cfg, base_dir)
+
     n_parou = int((N["categoria"] == "Parou de transmitir").sum()) if not N.empty else 0
     n_sem = int((N["categoria"] == "Sem transmissão").sum()) if not N.empty else 0
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Atrasos", len(A))
     m2.metric("Parou de transmitir", n_parou)
     m3.metric("Sem transmissao", n_sem)
-    m4.metric("Snapshot", _fmt_dt(ref))
+    m4.metric("Localizados", sum(1 for _, r in A.iterrows()
+              if str(r.get("prefixo_veiculo", "")).strip().upper() in pos))
+    m5.metric("Snapshot", _fmt_dt(ref))
 
     busca = st.text_input("Buscar carro, linha ou base",
                           placeholder="ex.: 9708 / RIO X / UTIL",
@@ -254,6 +349,7 @@ def render(cfg, base_dir, agora_dt):
 
     aba_a, aba_n = st.tabs([f"Atrasos ({len(A)})", f"Anomalias ({len(N)})"])
     with aba_a:
-        _tabela(A, busca, anomalia=False)
+        _tabela(A, busca, anomalia=False, pos=pos)
+        _mapa_atrasos(A, pos)
     with aba_n:
-        _tabela(N, busca, anomalia=True)
+        _tabela(N, busca, anomalia=True, pos=pos)
