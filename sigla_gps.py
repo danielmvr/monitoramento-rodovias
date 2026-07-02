@@ -50,7 +50,9 @@ Acoes suportadas em "passos":
 import argparse
 import json
 import logging
+import os
 import sys
+import threading
 import time
 import subprocess
 import datetime as dt
@@ -142,6 +144,36 @@ def abrir_sigla(cfg):
     time.sleep(cfg.get("login", {}).get("espera_apos_abrir_seg", 8))
 
 
+def _fechar_sigla(cfg):
+    """Forca o encerramento de QUALQUER instancia do SIGLA (taskkill /F /T).
+    Usado para limpar uma sessao travada antes de abrir, e para garantir o
+    fechamento ao fim do ciclo, mesmo que os atalhos nao tenham completado."""
+    exe = (cfg.get("login", {}) or {}).get("executavel") or EXECUTAVEL_PADRAO
+    nome = Path(exe).name  # ex.: sigla.exe
+    try:
+        r = subprocess.run(["taskkill", "/F", "/IM", nome, "/T"],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            log.info("SIGLA encerrado (taskkill /F %s).", nome)
+        else:
+            log.info("Nenhuma instancia de %s em execucao.", nome)
+    except Exception as e:
+        log.warning("Falha ao encerrar SIGLA (%s): %s", nome, e)
+
+
+def _watchdog(cfg, segundos):
+    """Rede de seguranca: apos 'segundos', mata o SIGLA e encerra o processo,
+    para um travamento nao prender o loop do .bat indefinidamente."""
+    def _stop():
+        log.error("TIMEOUT (%ss): encerrando SIGLA e abortando o ciclo.", segundos)
+        _fechar_sigla(cfg)
+        os._exit(5)
+    t = threading.Timer(float(segundos), _stop)
+    t.daemon = True
+    t.start()
+    return t
+
+
 def fazer_login(cfg):
     login = cfg["login"]
     titulo = login.get("titulo_janela", "")
@@ -224,10 +256,16 @@ def main():
 
     cfg = carregar_config(args.config)
     titulo_sigla = ((cfg.get("login") or {}).get("titulo_janela") or "")
+    execu = cfg.get("execucao", {}) or {}
+    timeout_seg = int(execu.get("timeout_seg", 600))
+    fechar = (not args.sem_login) and (not args.nao_fechar) \
+        and bool(execu.get("fechar_sigla", True))
+
     if fila is not None:
         log.info("Coordenacao de prioridade ATIVA: News cede o teclado ao Fluxo (WhatsApp) a cada passo.")
     else:
         log.warning("Coordenacao de prioridade INATIVA (fila_prioridade.py ausente): rodando SEM ceder ao Fluxo.")
+
     gps = cfg.get("gps")
     if not gps:
         fb = BASE / "gps_passos.json"
@@ -239,52 +277,67 @@ def main():
     passos = gps.get("passos", [])
     destino = gps.get("destino", "")
 
-    if fila is not None:
-        fila.aguardar_fluxo(reativar_titulo=titulo_sigla, log=log.info)
-
-    if not args.sem_login:
-        abrir_sigla(cfg)
-        fazer_login(cfg)
-
-    time.sleep(float(gps.get("espera_inicial_seg", 2)))
-
-    if not passos:
-        log.warning("Nenhum passo definido em config.json -> gps.passos.")
-        log.warning("Informe a sequencia de teclas para gerar/exportar o relatorio.")
-        sys.exit(4)
-
-    log.info("Executando %d passos de geracao do relatorio...", len(passos))
-    executar_passos(passos, titulo_sigla)
-
-    if destino:
-        d = Path(destino)
-        if d.exists():
-            idade = time.time() - d.stat().st_mtime
-            log.info("Arquivo destino OK: %s (atualizado ha %.0fs)", d, idade)
-        else:
-            log.warning("Arquivo destino nao encontrado apos os passos: %s", d)
-
-    # --- segunda geracao na mesma sessao (SIGLA segue aberto): ATRASOS ---
     atr = cfg.get("atrasos")
     if not atr:
         fa = BASE / "atrasos_passos.json"
         if fa.exists():
             atr = json.loads(fa.read_text(encoding="utf-8"))
             log.info("Passos de atrasos carregados de %s", fa.name)
-    if atr and atr.get("passos"):
-        time.sleep(float(atr.get("espera_inicial_seg", 1)))
-        log.info("Gerando relatorio de ATRASOS (%d passos)...", len(atr["passos"]))
-        executar_passos(atr["passos"], titulo_sigla)
-        d2 = Path(atr.get("destino", ""))
-        if atr.get("destino") and d2.exists():
-            log.info("Atrasos OK: %s (atualizado ha %.0fs)", d2,
-                     time.time() - d2.stat().st_mtime)
-        elif atr.get("destino"):
-            log.warning("Atrasos: destino nao encontrado apos os passos: %s", d2)
-    else:
-        log.info("Sem passos de atrasos (atrasos_passos.json ausente); pulado.")
 
-    log.info("Concluido.")
+    wd = None
+    try:
+        if not args.sem_login:
+            # 1) limpa qualquer instancia travada de um ciclo anterior
+            _fechar_sigla(cfg)
+            time.sleep(2)
+            # 2) watchdog: se algo congelar, mata o SIGLA e aborta o ciclo
+            wd = _watchdog(cfg, timeout_seg)
+            # 3) abre e loga
+            if fila is not None:
+                fila.aguardar_fluxo(reativar_titulo=titulo_sigla, log=log.info)
+            abrir_sigla(cfg)
+            fazer_login(cfg)
+
+        time.sleep(float(gps.get("espera_inicial_seg", 2)))
+
+        if not passos:
+            log.warning("Nenhum passo de GPS definido (gps.passos / gps_passos.json).")
+            return
+
+        log.info("Executando %d passos de geracao do relatorio GPS...", len(passos))
+        executar_passos(passos, titulo_sigla)
+        if destino:
+            d = Path(destino)
+            if d.exists():
+                log.info("GPS OK: %s (atualizado ha %.0fs)", d,
+                         time.time() - d.stat().st_mtime)
+            else:
+                log.warning("GPS: destino nao encontrado apos os passos: %s", d)
+
+        # segunda geracao na mesma sessao (SIGLA segue aberto): ATRASOS
+        if atr and atr.get("passos"):
+            time.sleep(float(atr.get("espera_inicial_seg", 1)))
+            log.info("Gerando relatorio de ATRASOS (%d passos)...", len(atr["passos"]))
+            executar_passos(atr["passos"], titulo_sigla)
+            d2 = Path(atr.get("destino", ""))
+            if atr.get("destino") and d2.exists():
+                log.info("Atrasos OK: %s (atualizado ha %.0fs)", d2,
+                         time.time() - d2.stat().st_mtime)
+            elif atr.get("destino"):
+                log.warning("Atrasos: destino nao encontrado apos os passos: %s", d2)
+        else:
+            log.info("Sem passos de atrasos (atrasos_passos.json ausente); pulado.")
+
+        log.info("Concluido.")
+    except Exception as e:  # noqa: BLE001
+        log.error("Erro durante o ciclo: %s", e)
+    finally:
+        if wd is not None:
+            wd.cancel()
+        if fechar:
+            _fechar_sigla(cfg)
+        elif not args.sem_login:
+            log.info("SIGLA mantido aberto (--nao-fechar ou execucao.fechar_sigla=false).")
 
 
 if __name__ == "__main__":
