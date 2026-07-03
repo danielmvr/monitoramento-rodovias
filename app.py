@@ -21,6 +21,7 @@ except ImportError:
 from monitor import config as cfgmod
 from monitor import pipeline, mapa
 from monitor import frota
+from monitor.coleta import ColetaBloqueada
 from monitor.processa import CATEGORIAS
 from monitor import __version__ as VERSAO
 
@@ -233,6 +234,9 @@ def _coleta_worker(cfg, job):
             cfg=cfg, usar_nominatim=True, sleep_s=0.5, status_cb=cb)
         job["itens"] = itens
         job["meta"] = meta
+    except ColetaBloqueada as e:
+        job["bloqueado"] = True
+        job["erro"] = str(e)
     except Exception as e:  # noqa: BLE001
         job["erro"] = str(e)
     finally:
@@ -558,13 +562,21 @@ if _atr_bg:
 # 1o trata um job existente (grava o resultado pronto / mostra o progresso).
 _job = st.session_state.get("col_job")
 if isinstance(_job, dict) and _job.get("done"):
-    if not _job.get("erro"):
-        st.session_state["itens"] = _job.get("itens") or []
-        st.session_state["meta"] = _job.get("meta") or {}
+    if _job.get("bloqueado"):
+        st.session_state["col_erro"] = (
+            "Google News nao respondeu (limite de requisicoes do IP na nuvem). "
+            "Mantendo os ultimos dados; tente de novo em alguns minutos.")
+        st.session_state["last_run"] = _agora()  # evita reataque imediato
+    elif _job.get("erro"):
+        st.session_state["col_erro"] = _job.get("erro")
+    else:
+        _novos = _job.get("itens") or []
+        # nao sobrescreve dados bons com um resultado vazio
+        if _novos or not st.session_state.get("itens"):
+            st.session_state["itens"] = _novos
+            st.session_state["meta"] = _job.get("meta") or {}
         st.session_state["last_run"] = _agora()
         st.session_state.pop("col_erro", None)
-    else:
-        st.session_state["col_erro"] = _job.get("erro")
     st.session_state.pop("col_job", None)
     st.rerun()
 if isinstance(_job, dict) and not _job.get("done"):

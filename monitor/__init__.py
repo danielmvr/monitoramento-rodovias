@@ -1,2 +1,2 @@
 """Pacote do Monitoramento de Rodovias - Linhas Util."""
-__version__ = "1.8.9"
+__version__ = "1.9.1"

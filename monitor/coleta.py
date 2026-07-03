@@ -23,7 +23,7 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 GNEWS = "https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={gl}:pt-419"
 
 
-def _fetch_url(url, timeout=20):
+def _fetch_url(url, timeout=8):
     """Baixa o conteudo de uma URL. Retorna bytes (ou b'' em caso de falha)."""
     if requests is not None:
         try:
@@ -71,15 +71,18 @@ def _fonte(entry):
         return ""
 
 
+class ColetaBloqueada(Exception):
+    """Google News recusando as requisicoes (IP de datacenter limitado)."""
+
+
 def buscar_alias(alias, cfg, fetch_fn=None):
-    """Retorna lista de entradas cruas (dicts) para um alias de rodovia/cidade."""
+    """Entradas cruas (dicts) de um alias. Retorna None se o FETCH FALHOU
+    (possivel bloqueio), [] se o feed veio vazio, ou a lista de entradas."""
     fetch_fn = fetch_fn or _fetch_url
     url = url_busca(alias, cfg)
     raw = fetch_fn(url)
     if not raw:
-        # fetch (com timeout) falhou; pula o alias em vez de deixar o feedparser
-        # baixar a URL SEM timeout (o que poderia travar a coleta inteira).
-        return []
+        return None  # fetch falhou (timeout/429/erro): possivel bloqueio
     feed = feedparser.parse(raw)
     itens = []
     limite = cfg["app"].get("max_por_consulta", 8)
@@ -99,11 +102,12 @@ def contem_problema(texto, palavras_problema):
     return any(normalizar(p) in n for p in palavras_problema)
 
 
-def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
-    """Coleta por todas as rodovias (e hubs, se habilitado). Os feeds sao
-    buscados EM PARALELO (I/O-bound) para acelerar; o filtro/dedup roda depois,
-    em ordem. Retorna lista de itens crus filtrados e deduplicados.
-    'sleep_s' e ignorado no modo paralelo (mantido por compatibilidade)."""
+def coletar(cfg, fetch_fn=None, sleep_s=0.4, status_cb=None, max_workers=None):
+    """Coleta SEQUENCIAL e gentil. O Google News limita requisicoes de IPs de
+    datacenter (nuvem); concorrencia faz o Google bloquear e devolver vazio,
+    entao buscamos um feed por vez. Se muitos fetches falharem seguidos logo no
+    inicio (sinal de bloqueio do IP), aborta com ColetaBloqueada em vez de
+    gastar minutos em vao. 'max_workers' mantido so por compatibilidade."""
     palavras = cfg.get("palavras_problema", [])
     alvos = []
     for r in cfg.get("rodovias", []):
@@ -115,34 +119,28 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
             alvos.append(("hub", h["nome"], alias, h))
 
     total = len(alvos)
-    if max_workers is None:
-        max_workers = int(cfg["app"].get("busca_workers", 3))
-    max_workers = max(1, min(int(max_workers), 16))
-
-    # ---- 1) busca dos feeds em paralelo ----
-    entradas_por_alvo = [[] for _ in range(total)]
-
-    def _buscar(idx):
-        try:
-            return idx, buscar_alias(alvos[idx][2], cfg, fetch_fn=fetch_fn)
-        except Exception:
-            return idx, []
-
-    concluidos = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futuros = [ex.submit(_buscar, i) for i in range(total)]
-        for fut in as_completed(futuros):
-            idx, entradas = fut.result()
-            entradas_por_alvo[idx] = entradas or []
-            concluidos += 1
-            if status_cb:
-                status_cb(concluidos, total, "Buscando noticias")
-
-    # ---- 2) filtro de relevancia + dedup (em ordem, rapido) ----
+    limite_falhas = int(cfg["app"].get("abortar_apos_falhas", 10))
     vistos = set()
     resultado = []
+    falhas = 0        # falhas de fetch consecutivas (sinal de bloqueio)
+    falhas_tot = 0
     for i, (tipo, nome, alias, meta) in enumerate(alvos):
-        for e in entradas_por_alvo[i]:
+        if status_cb:
+            status_cb(i + 1, total, "Buscando noticias")
+        try:
+            entradas = buscar_alias(alias, cfg, fetch_fn=fetch_fn)
+        except Exception:
+            entradas = None
+        if entradas is None:
+            falhas += 1
+            falhas_tot += 1
+            if not resultado and falhas >= limite_falhas:
+                raise ColetaBloqueada(
+                    "Google News nao respondeu (limite de requisicoes do IP).")
+            entradas = []
+        else:
+            falhas = 0
+        for e in entradas:
             blob = f'{e["titulo"]} {e["descricao"]}'
             if not contem_problema(blob, palavras):
                 continue
@@ -150,7 +148,6 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
             ref = normalizar(nome) in normalizar(blob) or \
                 normalizar(alias) in normalizar(blob)
             if tipo == "rodovia" and not ref:
-                # aceita se mencionar qualquer alias da rodovia
                 ref = any(normalizar(a) in normalizar(blob)
                           for a in (meta.get("aliases") or []))
             if not ref:
@@ -165,11 +162,11 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
             e["origem_nome"] = nome
             e["origem_meta"] = meta
             resultado.append(e)
+        if sleep_s:
+            time.sleep(sleep_s)
 
-    # Fallback automatico: se o modo paralelo voltou vazio (sinal de throttling
-    # do Google News com requisicoes simultaneas), refaz em modo sequencial
-    # (1 por vez), que e mais lento porem confiavel.
-    if not resultado and max_workers > 1:
-        return coletar(cfg, fetch_fn=fetch_fn, sleep_s=sleep_s,
-                       status_cb=status_cb, max_workers=1)
+    # Nada coletado e a maioria dos fetches falhou: IP bloqueado pelo Google.
+    if not resultado and falhas_tot >= max(1, total // 2):
+        raise ColetaBloqueada(
+            "Google News nao respondeu (limite de requisicoes do IP).")
     return resultado
