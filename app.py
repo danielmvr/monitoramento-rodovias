@@ -219,17 +219,12 @@ def _logo_uri():
 
 
 def rodar_coleta(usar_nominatim=True):
-    barra = st.progress(0.0)
-    txt = st.empty()
-
-    def cb(i, total, label):
-        barra.progress(min(i / max(total, 1), 1.0))
-        txt.write(f"Buscando {i}/{total}: {label}")
-
+    # Coleta ATOMICA: nao emite comandos st durante o processo. Assim o
+    # auto-refresh nao consegue interromper e reiniciar a busca no meio (o que
+    # causava o loop de "reiniciar a busca sem terminar"). O feedback fica por
+    # conta do st.spinner de quem chama.
     itens, meta = pipeline.executar(
-        cfg=CFG, usar_nominatim=usar_nominatim, sleep_s=0.7, status_cb=cb)
-    barra.empty()
-    txt.empty()
+        cfg=CFG, usar_nominatim=usar_nominatim, sleep_s=0.7)
     st.session_state["itens"] = itens
     st.session_state["meta"] = meta
     st.session_state["last_run"] = _agora()
@@ -248,6 +243,53 @@ if "itens" not in st.session_state:
         st.session_state["itens"] = []
         st.session_state["meta"] = {}
         st.session_state["last_run"] = None
+
+# ---------- modo resumo (Portal E-Guaba) ----------
+# Carregado pelo portal em iframe oculto (?view=resumo&embed=true): publica os
+# contadores via postMessage e encerra sem renderizar a interface.
+if st.query_params.get("view") == "resumo":
+    import json as _json
+    import streamlit.components.v1 as _components
+
+    _itens = st.session_state.get("itens") or []
+    _rod_interd = sorted({
+        (i.get("rodovia") or "").strip()
+        for i in _itens
+        if i.get("categoria") == "Interdicao" and (i.get("rodovia") or "").strip()
+    })
+
+    _n_atrasos = None
+    try:
+        import core as _core
+        from monitor import atrasos_page as _ap
+        _cfg_a = CFG.get("atrasos", {})
+        _local = _cfg_a.get("arquivo", "")
+        _url = (_cfg_a.get("url", "") or "").strip()
+        _fetched = os.path.join(BASE, "data", "atrasos.txt")
+        _na_maquina = bool(_local) and os.path.isdir(os.path.dirname(_local) or "")
+        _path = _local if _na_maquina else _fetched
+        if (not _na_maquina) and _url and not os.path.exists(_fetched):
+            _ap._baixar(_url, _fetched)
+        if _path and os.path.exists(_path):
+            _df = _core.carregar(_path)
+            _A, _N = _core.classificar(
+                _df, limite_min=int(_cfg_a.get("limite_min", 60)),
+                frescor_min=int(_cfg_a.get("frescor_min", 180)))
+            _n_atrasos = int(len(_A))
+    except Exception:
+        _n_atrasos = None
+
+    _payload = _json.dumps({
+        "type": "eguaba:resumo", "app": "rodovias",
+        "interdicoes": len(_rod_interd),
+        "rodovias_interditadas": _rod_interd,
+        "atrasos": _n_atrasos,
+    })
+    _components.html(
+        "<script>(function(){function p(){window.top.postMessage("
+        + _payload + ", '*');}p();setTimeout(p,2000);setTimeout(p,6000);"
+        "})();</script>", height=0)
+    st.stop()
 
 # ---------- cabecalho ----------
 st.markdown(
@@ -474,8 +516,11 @@ if _atr_bg:
         st.session_state["last_atr_auto"] = _agora()
 
 if auto and st.session_state.get("last_run"):
-    if _agora() - st.session_state["last_run"] >= dt.timedelta(
-            minutes=int(intervalo)):
+    _att = st.session_state.get("news_attempt")
+    _recente = _att is not None and (_agora() - _att < dt.timedelta(seconds=90))
+    if (not _recente) and (_agora() - st.session_state["last_run"]
+                           >= dt.timedelta(minutes=int(intervalo))):
+        st.session_state["news_attempt"] = _agora()  # cooldown anti-loop
         with st.spinner("Atualizacao automatica..."):
             rodar_coleta()
 

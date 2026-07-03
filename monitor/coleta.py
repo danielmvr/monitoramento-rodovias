@@ -1,4 +1,5 @@
 """Coleta de noticias via Google News RSS (sem chave de API)."""
+import socket
 import time
 import urllib.parse
 import datetime as dt
@@ -6,6 +7,9 @@ import datetime as dt
 import feedparser
 
 from .config import PALAVRAS_BUSCA, normalizar
+
+# Evita que um feed lento (sem timeout proprio) trave a coleta inteira.
+socket.setdefaulttimeout(20)
 
 try:
     import requests
@@ -71,7 +75,11 @@ def buscar_alias(alias, cfg, fetch_fn=None):
     fetch_fn = fetch_fn or _fetch_url
     url = url_busca(alias, cfg)
     raw = fetch_fn(url)
-    feed = feedparser.parse(raw) if raw else feedparser.parse(url)
+    if not raw:
+        # fetch (com timeout) falhou; pula o alias em vez de deixar o feedparser
+        # baixar a URL SEM timeout (o que poderia travar a coleta inteira).
+        return []
+    feed = feedparser.parse(raw)
     itens = []
     limite = cfg["app"].get("max_por_consulta", 8)
     for e in feed.entries[: max(1, limite) * 2]:
