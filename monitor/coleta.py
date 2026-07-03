@@ -3,6 +3,7 @@ import socket
 import time
 import urllib.parse
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import feedparser
 
@@ -98,10 +99,11 @@ def contem_problema(texto, palavras_problema):
     return any(normalizar(p) in n for p in palavras_problema)
 
 
-def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None):
-    """Coleta por todas as rodovias (e hubs, se habilitado). Retorna lista
-    de itens crus com a origem da busca (rodovia/hub) anexada e ja filtrados
-    por relevancia + deduplicados."""
+def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
+    """Coleta por todas as rodovias (e hubs, se habilitado). Os feeds sao
+    buscados EM PARALELO (I/O-bound) para acelerar; o filtro/dedup roda depois,
+    em ordem. Retorna lista de itens crus filtrados e deduplicados.
+    'sleep_s' e ignorado no modo paralelo (mantido por compatibilidade)."""
     palavras = cfg.get("palavras_problema", [])
     alvos = []
     for r in cfg.get("rodovias", []):
@@ -112,17 +114,35 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None):
             alias = f'{h["nome"]} rodovia'
             alvos.append(("hub", h["nome"], alias, h))
 
+    total = len(alvos)
+    if max_workers is None:
+        max_workers = int(cfg["app"].get("busca_workers", 8))
+    max_workers = max(1, min(int(max_workers), 16))
+
+    # ---- 1) busca dos feeds em paralelo ----
+    entradas_por_alvo = [[] for _ in range(total)]
+
+    def _buscar(idx):
+        try:
+            return idx, buscar_alias(alvos[idx][2], cfg, fetch_fn=fetch_fn)
+        except Exception:
+            return idx, []
+
+    concluidos = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futuros = [ex.submit(_buscar, i) for i in range(total)]
+        for fut in as_completed(futuros):
+            idx, entradas = fut.result()
+            entradas_por_alvo[idx] = entradas or []
+            concluidos += 1
+            if status_cb:
+                status_cb(concluidos, total, "Buscando noticias")
+
+    # ---- 2) filtro de relevancia + dedup (em ordem, rapido) ----
     vistos = set()
     resultado = []
-    total = len(alvos)
     for i, (tipo, nome, alias, meta) in enumerate(alvos):
-        if status_cb:
-            status_cb(i + 1, total, f"{nome} ({alias})")
-        try:
-            entradas = buscar_alias(alias, cfg, fetch_fn=fetch_fn)
-        except Exception:
-            entradas = []
-        for e in entradas:
+        for e in entradas_por_alvo[i]:
             blob = f'{e["titulo"]} {e["descricao"]}'
             if not contem_problema(blob, palavras):
                 continue
@@ -145,6 +165,4 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None):
             e["origem_nome"] = nome
             e["origem_meta"] = meta
             resultado.append(e)
-        if sleep_s:
-            time.sleep(sleep_s)
     return resultado

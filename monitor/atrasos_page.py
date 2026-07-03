@@ -251,8 +251,9 @@ def render(cfg, base_dir, agora_dt):
 
     # primeira busca na nuvem (uma vez por sessao): atrasos + GPS juntos
     if (not na_maquina) and url and "atr_fetch_ok" not in st.session_state:
-        st.session_state["atr_fetch_ok"] = _baixar(url, fetched)
-        _gps_path(cfg, base_dir, baixar=True)
+        with st.spinner("Baixando relatorio de atrasos..."):
+            st.session_state["atr_fetch_ok"] = _baixar(url, fetched)
+            _gps_path(cfg, base_dir, baixar=True)
         st.session_state["last_atr_auto"] = agora_dt
 
     if na_maquina:
@@ -323,10 +324,11 @@ def render(cfg, base_dir, agora_dt):
         return
 
     try:
-        df = core.carregar(path)
-        A, N = core.classificar(df, limite_min=int(limite),
-                                frescor_min=int(frescor))
-        ref = core.agora_padrao(df)
+        with st.spinner("Processando atrasos..."):
+            df = core.carregar(path)
+            A, N = core.classificar(df, limite_min=int(limite),
+                                    frescor_min=int(frescor))
+            ref = core.agora_padrao(df)
     except Exception as e:  # noqa: BLE001
         st.error(f"Falha ao processar o relatorio de atrasos: {e}")
         return
