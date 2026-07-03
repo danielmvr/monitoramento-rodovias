@@ -116,7 +116,7 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
 
     total = len(alvos)
     if max_workers is None:
-        max_workers = int(cfg["app"].get("busca_workers", 8))
+        max_workers = int(cfg["app"].get("busca_workers", 3))
     max_workers = max(1, min(int(max_workers), 16))
 
     # ---- 1) busca dos feeds em paralelo ----
@@ -165,4 +165,11 @@ def coletar(cfg, fetch_fn=None, sleep_s=1.0, status_cb=None, max_workers=None):
             e["origem_nome"] = nome
             e["origem_meta"] = meta
             resultado.append(e)
+
+    # Fallback automatico: se o modo paralelo voltou vazio (sinal de throttling
+    # do Google News com requisicoes simultaneas), refaz em modo sequencial
+    # (1 por vez), que e mais lento porem confiavel.
+    if not resultado and max_workers > 1:
+        return coletar(cfg, fetch_fn=fetch_fn, sleep_s=sleep_s,
+                       status_cb=status_cb, max_workers=1)
     return resultado
