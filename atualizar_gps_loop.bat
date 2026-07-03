@@ -1,18 +1,28 @@
 @echo off
 REM ============================================================
-REM  Mantem o ultima.CSV sempre fresco: gera o relatorio GPS no
-REM  SIGLA a cada N minutos (assim o painel/site sempre tem dados
-REM  recentes). Feche a janela para parar.
+REM  Loop UNICO de coleta (tudo em sequencia, nunca ao mesmo tempo):
+REM   - GPS + Atrasos no SIGLA a cada ciclo (SEG segundos).
+REM   - Noticias (Google News) a cada 3 ciclos (~15 min).
+REM  Feche a janela para parar.
 REM ============================================================
 cd /d "%~dp0"
 set SEG=300
+set /a CICLO=0
 :loop
-echo [%date% %time%] Limpando instancias antigas do SIGLA...
+set /a CICLO+=1
+echo ============================================================
+echo [%date% %time%] Ciclo %CICLO% - 1/2 Gerando GPS + Atrasos no SIGLA...
 taskkill /F /IM sigla.exe /T >nul 2>&1
-echo [%date% %time%] Gerando relatorios (GPS + Atrasos)...
 python sigla_gps.py
-echo [%date% %time%] Garantindo que o SIGLA foi fechado...
 taskkill /F /IM sigla.exe /T >nul 2>&1
-echo Proxima geracao em %SEG% segundos (Ctrl+C para parar)...
-timeout /t %SEG% /nobreak >nul
+set /a NEWS=CICLO %% 3
+if "%NEWS%"=="1" (
+  echo [%date% %time%] Ciclo %CICLO% - 2/2 Coletando NOTICIAS [Google News]...
+  python coletar_noticias.py
+) else (
+  echo [%date% %time%] Ciclo %CICLO% - 2/2 Noticias: pulado [coleta a cada ~15 min].
+)
+echo ------------------------------------------------------------
+echo [%date% %time%] Ciclo %CICLO% concluido. Proximo em %SEG%s [Ctrl+C para parar]...
+timeout /t %SEG% /nobreak
 goto loop

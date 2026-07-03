@@ -390,9 +390,10 @@ if st.sidebar.button("Atualizar Noticias", type="primary",
     st.rerun()
 
 _ult = st.session_state.get("last_run")
-_ult_txt = _fmt_brt(_ult) if isinstance(_ult, dt.datetime) else "nunca"
+_ult_txt = _fmt_dt(_ult) if isinstance(_ult, dt.datetime) else "nunca"
 st.sidebar.markdown(
-    f'<div class="gb-side-upd">Ultimo rastreio: {_ult_txt}</div>',
+    f'<div class="gb-side-upd">Noticias: coleta automatica a cada 15 min<br>'
+    f'Ultima coleta: {_ult_txt}</div>',
     unsafe_allow_html=True)
 
 # ---- GPS: fonte do arquivo (local na sua maquina OU link do OneDrive) ----
@@ -733,6 +734,11 @@ with col_main:
     st.markdown(
         f'<div class="gb-upd">Exibindo {len(itens)} de '
         f'{len(itens_periodo)} no periodo</div>', unsafe_allow_html=True)
+    _coleta_txt = _fmt_dt(_ult) if isinstance(_ult, dt.datetime) else "-"
+    st.markdown(
+        f'<div class="gb-upd">Noticias coletadas automaticamente a cada 15 min'
+        f' &nbsp;|&nbsp; ultima coleta: {_coleta_txt}</div>',
+        unsafe_allow_html=True)
     if _gps_ok and _mostrar_carros:
         _rtxt = _ref_gps.strftime("%d/%m %H:%M") if _ref_gps else "-"
         st.markdown(

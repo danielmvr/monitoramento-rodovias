@@ -20,12 +20,21 @@ from monitor import config as cfgmod
 from monitor import pipeline
 
 
+def _progresso(i, total, label):
+    # Contador ao vivo na mesma linha do console (visual de "coletando").
+    barra = ("#" * (i * 20 // max(total, 1))).ljust(20)
+    print(f"\r  [{barra}] {i}/{total}  {label:<28}", end="", flush=True)
+
+
 def main():
     cfg = cfgmod.load_config()
     ncfg = cfg.get("noticias", {}) or {}
     destino = ncfg.get("arquivo", "")
 
-    itens, meta = pipeline.executar(cfg=cfg, usar_nominatim=True, sleep_s=0.4)
+    print("Coletando noticias (isso leva alguns minutos)...")
+    itens, meta = pipeline.executar(cfg=cfg, usar_nominatim=True, sleep_s=0.4,
+                                    status_cb=_progresso)
+    print()  # quebra a linha do contador
     payload = {"meta": meta, "itens": [pipeline._serial(i) for i in itens]}
 
     if not destino:
