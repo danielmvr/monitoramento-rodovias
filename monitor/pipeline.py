@@ -56,7 +56,10 @@ def executar(cfg=None, fetch_fn=None, usar_nominatim=True, sleep_s=1.0,
     geo = GeoCoder(cfg, usar_nominatim=usar_nominatim)
     rod_rep = rep_rodovias(cfg)
     itens = []
-    for c in crus:
+    total_g = len(crus)
+    for gi, c in enumerate(crus, 1):
+        if status_cb:
+            status_cb(gi, total_g, f"Localizando {gi}/{total_g}")
         proc = processar_item(c, cfg)
         proc.update(geo.localizar(proc, rod_rep))
         laf, ltot = linhas_afetadas(

@@ -35,7 +35,7 @@ class GeoCoder:
         if self.usar_nominatim:
             try:
                 geoloc = Nominatim(user_agent="monitor-rodovias-util/1.0",
-                                   timeout=10)
+                                   timeout=6)
                 self._geocode = RateLimiter(
                     geoloc.geocode, min_delay_seconds=1.1,
                     swallow_exceptions=True)
