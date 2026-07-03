@@ -305,6 +305,12 @@ if _qp_view in ("carros", "atrasos") and "view" not in st.session_state:
     st.session_state["view"] = _qp_view
 
 # ---------- sidebar ----------
+st.sidebar.markdown(
+    '<div style="font-family:var(--pix);font-size:9px;color:var(--yellow);'
+    'background:var(--primaryd);border:2px solid var(--line);'
+    'box-shadow:2px 2px 0 var(--line);padding:6px 8px;text-align:center;'
+    f'letter-spacing:1px;margin:0 0 12px;">v{html.escape(VERSAO)}</div>',
+    unsafe_allow_html=True)
 _view_atual = st.session_state.get("view", "mapa")
 if _view_atual in ("carros", "atrasos"):
     if st.sidebar.button("Voltar ao mapa", key="voltar_mapa",
