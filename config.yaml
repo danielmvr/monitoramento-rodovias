@@ -327,3 +327,15 @@ atrasos:
   frescor_min: 180
   auto: true
   auto_min: 30
+
+# --------------------------------------------------------------------------
+# NOTICIAS - o Google News bloqueia o IP da nuvem (Streamlit Cloud), entao a
+# coleta roda na SUA MAQUINA (coletar_noticias.py, IP residencial) e salva o
+# resultado no arquivo abaixo. Na nuvem o painel baixa 'url'; na maquina le
+# 'arquivo'. Passos: 1) rode coletar_noticias.py (gera o noticias.json na pasta
+# do OneDrive); 2) crie um link publico do OneDrive para o noticias.json e cole
+# em 'url' (igual ao ultima.CSV / atrasos.TXT).
+# --------------------------------------------------------------------------
+noticias:
+  arquivo: 'C:\Users\cco\OneDrive - Guanabara Diesel\ultimaposicarros\noticias.json'
+  url: 'https://bcoguan02-my.sharepoint.com/:u:/g/personal/daniel_reis_util_com_br/IQBHH7CyK4v9QIqlucBUWkQ3AdLvnrD0JjrLL8ZaFKkgWJE?e=BHFs6z'

@@ -5,6 +5,7 @@ Execute com:  streamlit run app.py
 """
 import os
 import sys
+import json
 import base64
 import html
 import subprocess
@@ -21,7 +22,6 @@ except ImportError:
 from monitor import config as cfgmod
 from monitor import pipeline, mapa
 from monitor import frota
-from monitor.coleta import ColetaBloqueada
 from monitor.processa import CATEGORIAS
 from monitor import __version__ as VERSAO
 
@@ -221,65 +221,77 @@ def _logo_uri():
         return ""
 
 
-def _coleta_worker(cfg, job):
-    """Roda a coleta em thread separada. NAO chama Streamlit: apenas escreve
-    progresso/resultado no dict 'job' (compartilhado com a sessao). Assim a
-    pagina nunca trava; ela acompanha o progresso por polling."""
+def _baixar_url(url, destino):
+    """Baixa um arquivo de um link publico do OneDrive (uso na nuvem)."""
+    if not url:
+        return False
     try:
-        def cb(i, total, label):
-            job["i"] = i
-            job["total"] = total
-            job["label"] = label
-        itens, meta = pipeline.executar(
-            cfg=cfg, usar_nominatim=True, sleep_s=0.5, status_cb=cb)
-        job["itens"] = itens
-        job["meta"] = meta
-    except ColetaBloqueada as e:
-        job["bloqueado"] = True
-        job["erro"] = str(e)
-    except Exception as e:  # noqa: BLE001
-        job["erro"] = str(e)
-    finally:
-        job["done"] = True
-
-
-def iniciar_coleta():
-    """Dispara a coleta em segundo plano (se nao houver uma em andamento)."""
-    job = st.session_state.get("col_job")
-    if isinstance(job, dict) and not job.get("done"):
-        return  # ja em andamento
-    job = {"done": False, "i": 0, "total": 0, "label": "iniciando",
-           "inicio": time.time(), "itens": None, "meta": None, "erro": None}
-    st.session_state["col_job"] = job
-    try:
-        threading.Thread(target=_coleta_worker, args=(CFG, job),
-                         daemon=True).start()
+        import requests
+        r = requests.get(url, timeout=60, allow_redirects=True)
+        c = r.content or b""
+        if c[:64].lstrip().lower().startswith((b"<!doctype", b"<html")):
+            sep = "&" if "?" in url else "?"
+            r = requests.get(url + sep + "download=1", timeout=60,
+                             allow_redirects=True)
+            c = r.content or b""
+        if r.status_code == 200 and c and not c[:64].lstrip().lower().startswith(b"<"):
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            with open(destino, "wb") as f:
+                f.write(c)
+            return True
     except Exception:
-        _coleta_worker(CFG, job)  # fallback sincrono
+        pass
+    return False
 
 
-def rodar_coleta(usar_nominatim=True):
-    """Coleta sincrona (fallback). O fluxo normal usa iniciar_coleta()."""
-    itens, meta = pipeline.executar(
-        cfg=CFG, usar_nominatim=usar_nominatim, sleep_s=0.7)
-    st.session_state["itens"] = itens
-    st.session_state["meta"] = meta
-    st.session_state["last_run"] = _agora()
-    return itens, meta
+def _carregar_noticias(baixar=False):
+    """Le as noticias JA coletadas: arquivo local (pasta OneDrive, gerado por
+    coletar_noticias.py na sua maquina) ou download do link do OneDrive na
+    nuvem. O painel NAO busca o Google direto (o IP da nuvem e bloqueado)."""
+    ncfg = CFG.get("noticias", {})
+    local = ncfg.get("arquivo", "")
+    url = (ncfg.get("url", "") or "").strip()
+    fetched = os.path.join(BASE, "data", "noticias_online.json")
+    na_maquina = bool(local) and os.path.isdir(os.path.dirname(local) or "")
+    if na_maquina:
+        path = local
+    else:
+        if url and (baixar or not os.path.exists(fetched)):
+            _baixar_url(url, fetched)
+        path = fetched
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        return [], {}
+    itens = payload.get("itens", []) or []
+    for it in itens:
+        it["publicado"] = pipeline._parse_dt(it.get("publicado"))
+    return itens, payload.get("meta", {}) or {}
+
+
+def rodar_coleta(baixar=True, usar_nominatim=True):
+    """Atualiza as noticias LENDO o resultado pronto (arquivo local ou download
+    do OneDrive). A coleta em si roda na maquina (coletar_noticias.py); o painel
+    so exibe. Nao sobrescreve dados bons com um resultado vazio."""
+    itens, meta = _carregar_noticias(baixar=baixar)
+    if itens or not st.session_state.get("itens"):
+        st.session_state["itens"] = itens
+        st.session_state["meta"] = meta
+    la = (st.session_state.get("meta") or {}).get("atualizado_em")
+    st.session_state["last_run"] = pipeline._parse_dt(la) or _agora()
+    st.session_state["last_news_dl"] = _agora()
+    return st.session_state.get("itens", []), st.session_state.get("meta", {})
 
 
 # ---------- estado inicial ----------
 if "itens" not in st.session_state:
-    cache = pipeline.carregar_resultados()
-    if cache:
-        st.session_state["itens"] = cache["itens"]
-        st.session_state["meta"] = cache["meta"]
-        la = cache["meta"].get("atualizado_em")
-        st.session_state["last_run"] = pipeline._parse_dt(la)
-    else:
-        st.session_state["itens"] = []
-        st.session_state["meta"] = {}
-        st.session_state["last_run"] = None
+    _it0, _mt0 = _carregar_noticias(baixar=True)
+    st.session_state["itens"] = _it0
+    st.session_state["meta"] = _mt0
+    la = (_mt0 or {}).get("atualizado_em")
+    st.session_state["last_run"] = pipeline._parse_dt(la)
+    st.session_state["last_news_dl"] = _agora()
 
 # ---------- modo resumo (Portal E-Guaba) ----------
 # Carregado pelo portal em iframe oculto (?view=resumo&embed=true): publica os
@@ -373,8 +385,8 @@ st.sidebar.markdown('<div class="gb-side-title">CONTROLES</div>',
                     unsafe_allow_html=True)
 if st.sidebar.button("Atualizar Noticias", type="primary",
                      use_container_width=True):
-    st.session_state["news_attempt"] = _agora()
-    iniciar_coleta()
+    with st.spinner("Atualizando noticias..."):
+        rodar_coleta(baixar=True)
     st.rerun()
 
 _ult = st.session_state.get("last_run")
@@ -558,54 +570,13 @@ if _atr_bg:
         _ap._baixar(_atr_url, os.path.join(BASE, "data", "atrasos.txt"))
         st.session_state["last_atr_auto"] = _agora()
 
-# ---- acompanhamento da coleta em segundo plano (progresso ao vivo) ----
-# 1o trata um job existente (grava o resultado pronto / mostra o progresso).
-_job = st.session_state.get("col_job")
-if isinstance(_job, dict) and _job.get("done"):
-    if _job.get("bloqueado"):
-        st.session_state["col_erro"] = (
-            "Google News nao respondeu (limite de requisicoes do IP na nuvem). "
-            "Mantendo os ultimos dados; tente de novo em alguns minutos.")
-        st.session_state["last_run"] = _agora()  # evita reataque imediato
-    elif _job.get("erro"):
-        st.session_state["col_erro"] = _job.get("erro")
-    else:
-        _novos = _job.get("itens") or []
-        # nao sobrescreve dados bons com um resultado vazio
-        if _novos or not st.session_state.get("itens"):
-            st.session_state["itens"] = _novos
-            st.session_state["meta"] = _job.get("meta") or {}
-        st.session_state["last_run"] = _agora()
-        st.session_state.pop("col_erro", None)
-    st.session_state.pop("col_job", None)
-    st.rerun()
-if isinstance(_job, dict) and not _job.get("done"):
-    _el = int(time.time() - _job.get("inicio", time.time()))
-    _i, _tot = int(_job.get("i") or 0), int(_job.get("total") or 0)
-    _frac = min(_i / _tot, 1.0) if _tot else 0.0
-    st.markdown('<div class="gb-h2">BUSCANDO NOTICIAS</div>',
-                unsafe_allow_html=True)
-    st.progress(_frac, text=f"{_el}s decorridos  |  {_job.get('label', '')}"
-                            f"  ({_i}/{_tot})")
-    st.caption("A busca roda em segundo plano; esta tela se atualiza sozinha a "
-               "cada 1,5s. Se o contador nao avancar por muito tempo, algo "
-               "travou (clique em Atualizar Noticias para tentar de novo).")
-    if st_autorefresh is not None:
-        st_autorefresh(interval=1500, key="col_poll")
-    st.stop()
-
-# 2o dispara a coleta automatica (so chega aqui se NAO ha job em andamento).
-if auto and st.session_state.get("last_run"):
-    _att = st.session_state.get("news_attempt")
-    _recente = _att is not None and (_agora() - _att < dt.timedelta(seconds=90))
-    if (not _recente) and (_agora() - st.session_state["last_run"]
-                           >= dt.timedelta(minutes=int(intervalo))):
-        st.session_state["news_attempt"] = _agora()
-        iniciar_coleta()
-        st.rerun()
-
-if st.session_state.get("col_erro"):
-    st.sidebar.error("Falha na ultima busca: " + str(st.session_state["col_erro"]))
+# ---- auto-atualizacao das noticias: rele o resultado pronto por intervalo ----
+# (a coleta em si roda na sua maquina via coletar_noticias.py; aqui so lemos)
+if auto:
+    _ld = st.session_state.get("last_news_dl")
+    if (_ld is None) or (_agora() - _ld >= dt.timedelta(minutes=int(intervalo))):
+        with st.spinner("Atualizando noticias..."):
+            rodar_coleta(baixar=True)
 
 st.sidebar.divider()
 st.sidebar.markdown('<div class="gb-side-sub">FILTROS</div>',
