@@ -227,8 +227,11 @@ def _mapa_atrasos(A, pos):
         return
     lats = [x[1] for x in linhas]
     lons = [x[2] for x in linhas]
-    m = folium.Map(location=[sum(lats) / len(lats), sum(lons) / len(lons)],
-                   zoom_start=6, tiles="CartoDB dark_matter")
+    m = folium.Map(
+        location=[sum(lats) / len(lats), sum(lons) / len(lons)], zoom_start=6,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/"
+              "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles &copy; Esri")
     for v, lat, lon, local, linha, atr, dh in linhas:
         pop = (f"<b>{v}</b><br>{linha}<br>Atraso: {_fmt_hhmm(atr)}"
                f"<br>Local: {local}<br>GPS: {_fmt_dt(dh)}")

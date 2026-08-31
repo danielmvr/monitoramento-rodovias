@@ -15,7 +15,11 @@ COR_FOLIUM = {
     "Outros": "gray",
 }
 
-TILES = "CartoDB dark_matter"
+# Basemap escuro SEM chave de API (a CartoDB passou a exigir key e mostra
+# "API KEY REQUIRED"). Esri Dark Gray e publico e gratuito, com atribuicao.
+TILES = ("https://server.arcgisonline.com/ArcGIS/rest/services/"
+         "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}")
+TILES_ATTR = "Tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors"
 
 CENTRO_BR = (-16.5, -48.0)
 
@@ -63,7 +67,7 @@ def construir_mapa(itens, usar_cluster=True, carros=None, so_proximos=False):
         centro, zoom = CENTRO_BR, 4
 
     m = folium.Map(location=centro, zoom_start=zoom, control_scale=True,
-                   tiles=TILES)
+                   tiles=TILES, attr=TILES_ATTR)
     alvo = MarkerCluster().add_to(m) if usar_cluster else m
     for it in itens:
         if it.get("lat") is None or it.get("lon") is None:
@@ -105,7 +109,7 @@ def construir_mini_mapa(item, zoom=11):
     if item.get("lat") is None or item.get("lon") is None:
         return None
     m = folium.Map(location=[item["lat"], item["lon"]], zoom_start=zoom,
-                   control_scale=True, tiles=TILES)
+                   control_scale=True, tiles=TILES, attr=TILES_ATTR)
     cor = COR_FOLIUM.get(item.get("categoria"), "gray")
     folium.Marker(
         location=[item["lat"], item["lon"]],
