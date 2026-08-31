@@ -6,7 +6,7 @@ REM   - Noticias (Google News) a cada 3 ciclos (~15 min).
 REM  Feche a janela para parar.
 REM ============================================================
 cd /d "%~dp0"
-set SEG=300
+set SEG=1800
 set /a CICLO=0
 :loop
 set /a CICLO+=1
