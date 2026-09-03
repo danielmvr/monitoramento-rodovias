@@ -1,0 +1,30 @@
+{
+  "destino": "C:\\Users\\cco\\OneDrive - Guanabara Diesel\\ultimaposicarros\\execucao.xlsx",
+  "espera_inicial_seg": 1,
+  "passos": [
+    {"acao": "hotkey", "teclas": ["alt", "c"]},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 15},
+    {"acao": "press", "tecla": "alt"},
+    {"acao": "press", "tecla": "right", "vezes": 2},
+    {"acao": "press", "tecla": "down", "vezes": 1},
+    {"acao": "press", "tecla": "s", "vezes": 3},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "write", "texto": "{data_inicio}"},
+    {"acao": "press", "tecla": "tab"},
+    {"acao": "write", "texto": "{data_fim}"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "hotkey", "teclas": ["shift", "tab"]},
+    {"acao": "hotkey", "teclas": ["shift", "tab"]},
+    {"acao": "hotkey", "teclas": ["shift", "tab"]},
+    {"acao": "press", "tecla": "space"},
+    {"acao": "colar", "texto": "C:\\Users\\cco\\OneDrive - Guanabara Diesel\\ultimaposicarros"},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 2},
+    {"acao": "hotkey", "teclas": ["ctrl", "a"]},
+    {"acao": "write", "texto": "execucao", "intervalo": 0.06},
+    {"acao": "press", "tecla": "enter"},
+    {"acao": "sleep", "seg": 15},
+    {"acao": "hotkey", "teclas": ["alt", "f4"]}
+  ]
+}

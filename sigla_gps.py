@@ -203,11 +203,16 @@ def fazer_login(cfg):
 
 # ---------- GERACAO DO RELATORIO (passos por teclado) ----------
 def _subst(txt):
-    """Substitui tokens dinamicos no texto dos passos."""
+    """Substitui tokens dinamicos no texto dos passos.
+    {hoje}=data de hoje; {data_inicio}=hoje-3 dias; {data_fim}=hoje+3 dias."""
     agora = dt.datetime.now()
+    ini = agora - dt.timedelta(days=3)
+    fim = agora + dt.timedelta(days=3)
     return (str(txt)
             .replace("{hoje}", agora.strftime("%d/%m/%Y"))
-            .replace("{hoje_digitos}", agora.strftime("%d%m%Y")))
+            .replace("{hoje_digitos}", agora.strftime("%d%m%Y"))
+            .replace("{data_inicio}", ini.strftime("%d/%m/%Y"))
+            .replace("{data_fim}", fim.strftime("%d/%m/%Y")))
 
 
 def executar_passos(passos, titulo_sigla=None):
@@ -286,6 +291,12 @@ def main():
             atr = json.loads(fa.read_text(encoding="utf-8"))
             log.info("Passos de atrasos carregados de %s", fa.name)
 
+    exe = None
+    fx = BASE / "execucao_passos.json"
+    if fx.exists():
+        exe = json.loads(fx.read_text(encoding="utf-8"))
+        log.info("Passos de execucao carregados de %s", fx.name)
+
     wd = None
     try:
         if not args.sem_login:
@@ -329,6 +340,20 @@ def main():
                 log.warning("Atrasos: destino nao encontrado apos os passos: %s", d2)
         else:
             log.info("Sem passos de atrasos (atrasos_passos.json ausente); pulado.")
+
+        # terceira geracao na mesma sessao (SIGLA segue aberto): EXECUCAO
+        if exe and exe.get("passos"):
+            time.sleep(float(exe.get("espera_inicial_seg", 1)))
+            log.info("Gerando relatorio de EXECUCAO (%d passos)...", len(exe["passos"]))
+            executar_passos(exe["passos"], titulo_sigla)
+            d3 = Path(exe.get("destino", ""))
+            if exe.get("destino") and d3.exists():
+                log.info("Execucao OK: %s (atualizado ha %.0fs)", d3,
+                         time.time() - d3.stat().st_mtime)
+            elif exe.get("destino"):
+                log.warning("Execucao: destino nao encontrado apos os passos: %s", d3)
+        else:
+            log.info("Sem passos de execucao (execucao_passos.json ausente); pulado.")
 
         log.info("Concluido.")
     except Exception as e:  # noqa: BLE001

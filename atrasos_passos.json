@@ -25,7 +25,6 @@
     {"acao": "write", "texto": "atrasos"},
     {"acao": "press", "tecla": "enter"},
     {"acao": "sleep", "seg": 1},
-    {"acao": "press", "tecla": "enter"},
-    {"acao": "hotkey", "teclas": ["alt", "f4"]}
+    {"acao": "press", "tecla": "enter"}
   ]
 }
