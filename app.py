@@ -330,6 +330,7 @@ if st.query_params.get("view") == "resumo":
 
     _payload = _json.dumps({
         "type": "eguaba:resumo", "app": "rodovias",
+        "token": st.query_params.get("token") or "",
         "interdicoes": len(_rod_interd),
         "rodovias_interditadas": _rod_interd,
         "atrasos": _n_atrasos,
